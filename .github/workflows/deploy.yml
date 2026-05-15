@@ -81,7 +81,6 @@ jobs:
           path: |
             infra/terraform/terraform.tfstate
             infra/terraform/terraform.tfstate.backup
-            infra/terraform/.terraform.tfstate.lock.info
           key: terraform-state-${{ github.repository }}-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             terraform-state-${{ github.repository }}-${{ github.ref_name }}-
@@ -161,5 +160,4 @@ jobs:
           path: |
             infra/terraform/terraform.tfstate
             infra/terraform/terraform.tfstate.backup
-            infra/terraform/.terraform.tfstate.lock.info
           key: ${{ steps.terraform_state_cache_restore.outputs.cache-primary-key }}
