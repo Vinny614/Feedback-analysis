@@ -81,7 +81,7 @@ jobs:
           path: |
             infra/terraform/terraform.tfstate
             infra/terraform/terraform.tfstate.backup
-          key: terraform-state-${{ github.repository }}-${{ github.ref_name }}-${{ hashFiles('infra/terraform/terraform.tfstate') }}
+          key: terraform-state-${{ github.repository }}-${{ github.ref_name }}-latest
           restore-keys: |
             terraform-state-${{ github.repository }}-${{ github.ref_name }}-
 
@@ -154,10 +154,10 @@ jobs:
           terraform apply -input=false -auto-approve tfdestroyplan
 
       - name: Save Terraform state cache
-        if: ${{ success() && hashFiles('infra/terraform/terraform.tfstate') != '' }}
+        if: success() && hashFiles('infra/terraform/terraform.tfstate') != ''
         uses: actions/cache/save@v4
         with:
           path: |
             infra/terraform/terraform.tfstate
             infra/terraform/terraform.tfstate.backup
-          key: terraform-state-${{ github.repository }}-${{ github.ref_name }}-${{ hashFiles('infra/terraform/terraform.tfstate') }}
+          key: terraform-state-${{ github.repository }}-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
