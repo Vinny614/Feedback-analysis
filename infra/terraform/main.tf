@@ -97,7 +97,7 @@ resource "azurerm_linux_web_app" "this" {
     application_stack {
       python_version = "3.11"
     }
-    app_command_line = "gunicorn --bind=0.0.0.0:$PORT wsgi:application"
+    app_command_line = "gunicorn --bind=0.0.0.0:8000 wsgi:application"
   }
 
   app_settings = {
