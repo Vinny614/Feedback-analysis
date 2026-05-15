@@ -105,14 +105,14 @@ jobs:
             exit 1
           fi
 
-          if terraform state list >"${STATE_LIST_FILE}" 2>"${STATE_LIST_ERROR_FILE}"; then
-            true
-          elif grep -qi "No state file was found!" "${STATE_LIST_ERROR_FILE}"; then
-            : >"${STATE_LIST_FILE}"
-          else
-            echo "Unable to read Terraform state before import check. Error output:"
-            cat "${STATE_LIST_ERROR_FILE}"
-            exit 1
+          if ! terraform state list >"${STATE_LIST_FILE}" 2>"${STATE_LIST_ERROR_FILE}"; then
+            if grep -qi "No state file was found!" "${STATE_LIST_ERROR_FILE}"; then
+              >"${STATE_LIST_FILE}"
+            else
+              echo "Unable to read Terraform state before import check. Error output:"
+              cat "${STATE_LIST_ERROR_FILE}"
+              exit 1
+            fi
           fi
 
           if [[ -n "${RESOURCE_GROUP_ID}" ]] && ! grep -Eq '(^|[[:space:]])azurerm_resource_group\.this([[:space:]]|$)' "${STATE_LIST_FILE}"; then
