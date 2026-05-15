@@ -30,6 +30,8 @@ Set these before running the app:
 - `AZURE_LANGUAGE_API_VERSION` (optional, defaults to `2023-04-01`)
 - `AZURE_OPENAI_API_VERSION` (optional, defaults to `2024-06-01`)
 
+Defaults were validated with this demo implementation and are recommended unless your Azure resources require newer API versions.
+
 Optional for local/demo verification without Azure credentials:
 
 - `DEMO_USE_MOCK_ANALYZERS=true`

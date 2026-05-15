@@ -71,6 +71,14 @@ class FeedbackAnalysisTests(unittest.TestCase):
         self.assertEqual(enriched.loc[1, "azure_confidence_negative"], 0.89)
         self.assertEqual(enriched.loc[0, "azure_opinion_mining"], "support:positive")
 
+    def test_enrich_feedback_dataframe_raises_on_size_mismatch(self):
+        df = pd.DataFrame({"Feedback": ["Great support", "Needs improvement"]})
+        azure_stub = StubAnalyzer([{"sentiment": "positive"}])
+        phi_stub = StubAnalyzer([{"sentiment": "positive"}, {"sentiment": "negative"}])
+
+        with self.assertRaises(ValueError):
+            enrich_feedback_dataframe(df, "Feedback", azure_stub, phi_stub)
+
 
 if __name__ == "__main__":
     unittest.main()
