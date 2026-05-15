@@ -25,7 +25,7 @@ All Azure service calls use **Managed Identity / Entra ID (AAD) bearer tokens** 
 when no service keys are configured.
 
 - **On Azure App Service**: Terraform injects the AI service endpoints, deployment name,
-  and access keys into application settings.
+  enables system-assigned managed identity, and grants required Cognitive Services roles.
 - **Locally**: `az login` is used; `DefaultAzureCredential` picks up your CLI session.
 
 ## Environment variables
@@ -47,8 +47,9 @@ Optional for local/demo verification without Azure credentials:
 
 - `DEMO_USE_MOCK_ANALYZERS=true`
 
-For **Azure Web App deployments provisioned by Terraform**, the required endpoints,
-deployment name, and service keys are set automatically in App Service application settings.
+For **Azure Web App deployments provisioned by Terraform**, the required endpoints and
+deployment name are set automatically in App Service application settings, and Terraform
+configures managed identity role assignments for Azure AI Language and Azure OpenAI.
 
 ## Demo: one-command build and teardown with Terraform
 
@@ -152,7 +153,7 @@ Optional host/port overrides:
 ## Run on Azure Web App (Linux)
 
 The App Service is provisioned by Terraform with the required AI service endpoints,
-deployment name, and keys. Deploy the code with:
+deployment name, and managed identity permissions. Deploy the code with:
 
 ```bash
 az webapp up \
