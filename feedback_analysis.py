@@ -161,7 +161,7 @@ class AzureLanguageAnalyzer:
 class PhiAnalyzer:
     endpoint: str
     deployment: str
-    api_version: str = "2024-06-01"
+    api_version: str = "2025-01-01-preview"
     api_key: str = ""
 
     def analyze(self, texts: List[str]) -> List[Dict[str, Any]]:
