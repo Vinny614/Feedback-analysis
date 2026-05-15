@@ -1,8 +1,13 @@
 import unittest
+from unittest.mock import patch
 
 import pandas as pd
 
-from feedback_analysis import detect_feedback_column, enrich_feedback_dataframe
+from feedback_analysis import (
+    _build_service_headers,
+    detect_feedback_column,
+    enrich_feedback_dataframe,
+)
 
 
 class StubAnalyzer:
@@ -78,6 +83,29 @@ class FeedbackAnalysisTests(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             enrich_feedback_dataframe(df, "Feedback", azure_stub, phi_stub)
+
+    def test_build_service_headers_prefers_api_key_when_present(self):
+        with patch("feedback_analysis._credential.get_token") as get_token:
+            headers = _build_service_headers("secret-key", "api-key")
+
+        self.assertEqual(
+            headers, {"api-key": "secret-key", "Content-Type": "application/json"}
+        )
+        get_token.assert_not_called()
+
+    def test_build_service_headers_uses_bearer_token_when_api_key_missing(self):
+        with patch("feedback_analysis._credential.get_token") as get_token:
+            get_token.return_value.token = "token-value"
+            headers = _build_service_headers("", "api-key")
+
+        self.assertEqual(
+            headers,
+            {
+                "Authorization": "Bearer token-value",
+                "Content-Type": "application/json",
+            },
+        )
+        get_token.assert_called_once()
 
 
 if __name__ == "__main__":

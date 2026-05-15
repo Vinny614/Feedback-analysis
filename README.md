@@ -11,20 +11,21 @@ A minimal Flask demo for analyzing feedback from an uploaded Excel file.
   - opinion mining
   - key phrases
   - confidence scores
-- Adds Phi model outputs as new columns:
+- Adds Azure OpenAI chat-model outputs as new columns:
   - sentiment
   - opinion mining
   - key phrases
 - Renders the enriched table in the web UI
 - Lets you download the enriched file as Excel
 
-## Authentication — RBAC, no keys
+## Authentication — Entra ID locally, app settings in Azure
 
 All Azure service calls use **Managed Identity / Entra ID (AAD) bearer tokens** via
-[`DefaultAzureCredential`](https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity.defaultazurecredential).
-No API keys are stored or required.
+[`DefaultAzureCredential`](https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity.defaultazurecredential)
+when no service keys are configured.
 
-- **On Azure App Service**: the system-assigned managed identity authenticates automatically.
+- **On Azure App Service**: Terraform injects the AI service endpoints, deployment name,
+  and access keys into application settings.
 - **Locally**: `az login` is used; `DefaultAzureCredential` picks up your CLI session.
 
 ## Environment variables
@@ -37,27 +38,29 @@ For **local runs** (`python app.py`), set these before starting the app (no keys
 - `AZURE_LANGUAGE_API_VERSION` (optional, defaults to `2023-04-01`)
 - `AZURE_OPENAI_API_VERSION` (optional, defaults to `2024-06-01`)
 
+Optional if you want to use service keys instead of Entra ID:
+
+- `AZURE_LANGUAGE_KEY`
+- `AZURE_OPENAI_KEY`
+
 Optional for local/demo verification without Azure credentials:
 
 - `DEMO_USE_MOCK_ANALYZERS=true`
 
-For **Azure Web App deployments provisioned by Terraform**, these required variables
-(`AZURE_LANGUAGE_ENDPOINT`, `AZURE_OPENAI_ENDPOINT`, and `PHI_DEPLOYMENT_NAME`) are
-set automatically in App Service application settings.
+For **Azure Web App deployments provisioned by Terraform**, the required endpoints,
+deployment name, and service keys are set automatically in App Service application settings.
 
 ## Demo: one-command build and teardown with Terraform
 
-Terraform provisions **everything** — AI services, RBAC assignments, and the App Service.
+Terraform provisions **everything** — AI services and the App Service.
 `terraform destroy` tears it all down cleanly.
 
 ### What Terraform creates
 
 - Resource Group
-- Azure AI Language (`TextAnalytics`) account — key auth disabled
-- Azure OpenAI account + Phi model deployment — key auth disabled
-- **RBAC role assignments** for the identity running Terraform (for local development)
-- App Service Plan + Linux Web App with system-assigned managed identity
-- **RBAC role assignments** for the App Service managed identity
+- Azure AI Language (`TextAnalytics`) account
+- Azure OpenAI account + chat model deployment
+- App Service Plan + Linux Web App
 
 ### Deploy
 
@@ -137,9 +140,9 @@ python app.py
 Open `http://localhost:8000`.
 
 `DefaultAzureCredential` uses your `az login` session to authenticate to Azure AI services.
-Your account must have the **Cognitive Services User** role on the Language resource and the
-**Cognitive Services OpenAI User** role on the OpenAI resource — Terraform assigns these
-automatically for the identity that runs `terraform apply`.
+If you are using Entra ID instead of service keys, your account must have the
+**Cognitive Services User** role on the Language resource and the
+**Cognitive Services OpenAI User** role on the OpenAI resource.
 
 Optional host/port overrides:
 
@@ -148,8 +151,8 @@ Optional host/port overrides:
 
 ## Run on Azure Web App (Linux)
 
-The App Service is provisioned by Terraform with the correct managed identity and RBAC
-assignments. Deploy the code with:
+The App Service is provisioned by Terraform with the required AI service endpoints,
+deployment name, and keys. Deploy the code with:
 
 ```bash
 az webapp up \

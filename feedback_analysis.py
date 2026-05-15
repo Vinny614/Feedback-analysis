@@ -84,6 +84,7 @@ class DemoHeuristicAnalyzer:
 class AzureLanguageAnalyzer:
     endpoint: str
     api_version: str = "2023-04-01"
+    api_key: str = ""
 
     def analyze(self, texts: List[str]) -> List[Dict[str, Any]]:
         if not self.endpoint:
@@ -91,8 +92,9 @@ class AzureLanguageAnalyzer:
                 "Azure Language endpoint is missing. Set AZURE_LANGUAGE_ENDPOINT."
             )
 
-        token = _credential.get_token(_COGNITIVE_SERVICES_SCOPE).token
-        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        headers = _build_service_headers(
+            api_key=self.api_key, api_key_header="Ocp-Apim-Subscription-Key"
+        )
         documents = [{"id": str(i + 1), "language": "en", "text": text} for i, text in enumerate(texts)]
 
         sentiment_response = requests.post(
@@ -160,6 +162,7 @@ class PhiAnalyzer:
     endpoint: str
     deployment: str
     api_version: str = "2024-06-01"
+    api_key: str = ""
 
     def analyze(self, texts: List[str]) -> List[Dict[str, Any]]:
         if not self.endpoint or not self.deployment:
@@ -167,8 +170,7 @@ class PhiAnalyzer:
                 "Phi model configuration is missing. Set AZURE_OPENAI_ENDPOINT and PHI_DEPLOYMENT_NAME."
             )
 
-        token = _credential.get_token(_COGNITIVE_SERVICES_SCOPE).token
-        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        headers = _build_service_headers(api_key=self.api_key, api_key_header="api-key")
         results = []
         for text in texts:
             response = requests.post(
@@ -219,6 +221,14 @@ def _safe_parse_json(value: str) -> Dict[str, Any]:
             return json.loads(match.group(0))
         except json.JSONDecodeError:
             return {}
+
+
+def _build_service_headers(api_key: str, api_key_header: str) -> Dict[str, str]:
+    if api_key:
+        return {api_key_header: api_key, "Content-Type": "application/json"}
+
+    token = _credential.get_token(_COGNITIVE_SERVICES_SCOPE).token
+    return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
 
 def detect_feedback_column(df: pd.DataFrame) -> str:
