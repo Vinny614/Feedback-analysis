@@ -80,7 +80,6 @@ jobs:
         with:
           path: |
             infra/terraform/terraform.tfstate
-            infra/terraform/terraform.tfstate.backup
           key: terraform-state-${{ github.repository }}-${{ github.ref_name }}-latest
           restore-keys: |
             terraform-state-${{ github.repository }}-${{ github.ref_name }}-
@@ -159,5 +158,4 @@ jobs:
         with:
           path: |
             infra/terraform/terraform.tfstate
-            infra/terraform/terraform.tfstate.backup
           key: terraform-state-${{ github.repository }}-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
