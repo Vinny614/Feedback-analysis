@@ -80,11 +80,18 @@ jobs:
       - name: Import existing resource group into Terraform state
         if: ${{ github.event.inputs.operation == 'deploy' }}
         run: |
-          RESOURCE_GROUP_NAME="$(awk -F= '/^\s*resource_group_name\s*=/{gsub(/[ "]/,"",$2); print $2; exit}' terraform.tfvars)"
-          RESOURCE_GROUP_NAME="${RESOURCE_GROUP_NAME:-feedback-analysis-rg}"
+          RESOURCE_GROUP_NAME="$(echo 'var.resource_group_name' | terraform console | sed -e 's/^"//' -e 's/"$//')"
           RESOURCE_GROUP_ID="$(az group show --name "${RESOURCE_GROUP_NAME}" --query id -o tsv 2>/dev/null || true)"
+          STATE_LIST_FILE="$(mktemp)"
+          STATE_LIST_ERROR_FILE="$(mktemp)"
 
-          if [[ -n "${RESOURCE_GROUP_ID}" ]] && ! terraform state show azurerm_resource_group.this >/dev/null 2>&1; then
+          if ! terraform state list >"${STATE_LIST_FILE}" 2>"${STATE_LIST_ERROR_FILE}"; then
+            echo "Unable to read Terraform state before import check. Error output:"
+            cat "${STATE_LIST_ERROR_FILE}"
+            exit 1
+          fi
+
+          if [[ -n "${RESOURCE_GROUP_ID}" ]] && ! grep -Fxq "azurerm_resource_group.this" "${STATE_LIST_FILE}"; then
             terraform import -input=false azurerm_resource_group.this "${RESOURCE_GROUP_ID}"
           fi
 
