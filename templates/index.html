@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Feedback Analysis Demo</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 2rem;
+      }
+      .result-table {
+        border-collapse: collapse;
+        margin-top: 1rem;
+        width: 100%;
+      }
+      .result-table th,
+      .result-table td {
+        border: 1px solid #ccc;
+        padding: 8px;
+        text-align: left;
+        vertical-align: top;
+      }
+      .error {
+        color: #b00020;
+        margin-top: 1rem;
+      }
+      .hint {
+        color: #555;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Feedback Analysis Demo</h1>
+    <p class="hint">
+      Upload an Excel file with feedback rows. The app adds Azure AI Language and Phi-model outputs as new columns.
+    </p>
+    <form method="post" enctype="multipart/form-data">
+      <input type="file" name="feedback_file" accept=".xlsx,.xls" required />
+      <button type="submit">Analyze</button>
+    </form>
+
+    {% if error %}
+    <div class="error">{{ error }}</div>
+    {% endif %}
+
+    {% if table_html %}
+    <p><strong>Detected feedback column:</strong> {{ feedback_column }}</p>
+    <p>
+      <a href="{{ download_url }}" download="feedback_analysis_output.xlsx">Download enriched Excel</a>
+    </p>
+    {{ table_html|safe }}
+    {% endif %}
+  </body>
+</html>
