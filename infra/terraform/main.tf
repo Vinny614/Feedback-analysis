@@ -71,8 +71,8 @@ resource "azurerm_cognitive_deployment" "phi" {
     version = var.phi_model_version
   }
 
-  sku {
-    name     = "Standard"
+  scale {
+    type     = "Standard"
     capacity = var.phi_deployment_capacity
   }
 }
@@ -115,7 +115,7 @@ resource "azurerm_linux_web_app" "this" {
     application_stack {
       python_version = "3.11"
     }
-    startup_command = "gunicorn --bind=0.0.0.0:$PORT wsgi:application"
+    app_command_line = "gunicorn --bind=0.0.0.0:$PORT wsgi:application"
   }
 
   app_settings = {
