@@ -106,7 +106,7 @@ jobs:
           fi
 
           if ! terraform state list >"${STATE_LIST_FILE}" 2>"${STATE_LIST_ERROR_FILE}"; then
-            if grep -qi "No state file was found!" "${STATE_LIST_ERROR_FILE}"; then
+            if grep -Eqi "state file.*found|found.*state file" "${STATE_LIST_ERROR_FILE}"; then
               >"${STATE_LIST_FILE}"
             else
               echo "Unable to read Terraform state before import check. Error output:"
