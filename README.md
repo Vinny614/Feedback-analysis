@@ -36,7 +36,7 @@ For **local runs** (`python app.py`), set these before starting the app (no keys
 - `AZURE_OPENAI_ENDPOINT`
 - `PHI_DEPLOYMENT_NAME`
 - `AZURE_LANGUAGE_API_VERSION` (optional, defaults to `2023-04-01`)
-- `AZURE_OPENAI_API_VERSION` (optional, defaults to `2024-06-01`)
+- `AZURE_OPENAI_API_VERSION` (optional, defaults to `2025-01-01-preview`)
 
 Optional if you want to use service keys instead of Entra ID:
 

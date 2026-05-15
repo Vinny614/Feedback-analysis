@@ -19,6 +19,34 @@ app = Flask(__name__)
 logger = logging.getLogger(__name__)
 
 
+def _format_request_exception(exc: requests.RequestException) -> str:
+    response = getattr(exc, "response", None)
+    if response is None:
+        return ""
+
+    message = ""
+    try:
+        payload = response.json()
+        if isinstance(payload, dict):
+            error_obj = payload.get("error", {})
+            if isinstance(error_obj, dict):
+                message = str(error_obj.get("message", "")).strip()
+            if not message:
+                message = str(payload.get("message", "")).strip()
+    except ValueError:
+        message = ""
+
+    if not message:
+        message = (response.text or "").strip()
+
+    if message:
+        message = " ".join(message.split())
+        message = message[:300]
+
+    status = getattr(response, "status_code", "")
+    return f"(HTTP {status}: {message})" if message else f"(HTTP {status})"
+
+
 def _build_download_link(df: pd.DataFrame) -> str:
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -58,7 +86,7 @@ def index():
                 phi_analyzer = PhiAnalyzer(
                     endpoint=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
                     deployment=os.getenv("PHI_DEPLOYMENT_NAME", ""),
-                    api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-06-01"),
+                    api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview"),
                     api_key=os.getenv("AZURE_OPENAI_KEY", ""),
                 )
 
@@ -70,9 +98,13 @@ def index():
             context["feedback_column"] = feedback_column
         except ValueError as exc:
             context["error"] = str(exc)
-        except requests.RequestException:
+        except requests.RequestException as exc:
             logger.exception("External analysis service request failed.")
-            context["error"] = "Analysis request to Azure services failed. Check endpoint configuration and identity permissions."
+            details = _format_request_exception(exc)
+            context["error"] = (
+                "Analysis request to Azure services failed. Check endpoint configuration and identity permissions. "
+                f"{details}"
+            ).strip()
         except Exception:
             logger.exception("Unexpected error while processing feedback upload.")
             context["error"] = "Unable to process the uploaded file."
