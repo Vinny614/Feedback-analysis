@@ -36,6 +36,33 @@ Optional for local/demo verification without Azure credentials:
 
 - `DEMO_USE_MOCK_ANALYZERS=true`
 
+## Provision Azure infrastructure with Terraform
+
+Terraform files are available in `infra/terraform` and create:
+
+- Resource Group
+- Azure AI Language (`TextAnalytics`) account
+- Azure OpenAI account
+- Azure OpenAI deployment for Phi model
+
+1. Authenticate to Azure (for example with `az login`).
+2. Initialize and apply Terraform:
+
+```bash
+cd infra/terraform
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform apply
+```
+
+3. Use Terraform outputs to set app environment variables:
+
+- `azure_language_endpoint` -> `AZURE_LANGUAGE_ENDPOINT`
+- `azure_language_key` -> `AZURE_LANGUAGE_KEY`
+- `azure_openai_endpoint` -> `AZURE_OPENAI_ENDPOINT`
+- `azure_openai_key` -> `AZURE_OPENAI_KEY`
+- `phi_deployment_name` -> `PHI_DEPLOYMENT_NAME`
+
 ## Run locally
 
 ```bash
