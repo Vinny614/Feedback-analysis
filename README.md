@@ -74,8 +74,28 @@ Open `http://localhost:8000`.
 
 Optional host/port overrides:
 
-- `FLASK_HOST` (defaults to `127.0.0.1`)
+- `FLASK_HOST` (defaults to `0.0.0.0`)
 - `FLASK_PORT` (defaults to `8000`)
+
+## Run on Azure Web App (Linux)
+
+1. Create a Python App Service and configure these app settings:
+   - `AZURE_LANGUAGE_ENDPOINT`
+   - `AZURE_LANGUAGE_KEY`
+   - `AZURE_OPENAI_ENDPOINT`
+   - `AZURE_OPENAI_KEY`
+   - `PHI_DEPLOYMENT_NAME`
+   - `DEMO_USE_MOCK_ANALYZERS` (optional)
+
+2. Deploy this repository to the Web App.
+
+3. Set the Startup Command to:
+
+```bash
+gunicorn --bind=0.0.0.0:$PORT wsgi:app
+```
+
+The app now also supports `PORT` automatically when run directly.
 
 ## Run tests
 
