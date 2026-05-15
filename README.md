@@ -114,6 +114,9 @@ The workflow supports two operations:
 - `deploy`: runs `terraform apply` and then deploys app code with `az webapp up`
 - `teardown`: runs `terraform destroy` (requires `confirm_teardown=DESTROY`)
 
+To avoid provisioning a brand-new infrastructure set on every re-run, the workflow restores and saves
+`infra/terraform/terraform.tfstate` between runs using GitHub Actions cache.
+
 ### Required GitHub repository secrets
 
 - `AZURE_CLIENT_ID`
