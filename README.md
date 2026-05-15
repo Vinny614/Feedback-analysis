@@ -165,7 +165,7 @@ az webapp up \
 The startup command is already configured in Terraform:
 
 ```
-gunicorn --bind=0.0.0.0:8000 wsgi:application
+gunicorn --bind=0.0.0.0:${PORT:-8000} wsgi:application
 ```
 
 ## Run tests
