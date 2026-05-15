@@ -80,7 +80,7 @@ jobs:
         with:
           path: |
             infra/terraform/terraform.tfstate
-          key: terraform-state-${{ github.repository }}-${{ github.ref_name }}-latest
+          key: terraform-state-${{ github.repository }}-${{ github.ref_name }}
           restore-keys: |
             terraform-state-${{ github.repository }}-${{ github.ref_name }}-
 
