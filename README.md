@@ -29,7 +29,7 @@ No API keys are stored or required.
 
 ## Environment variables
 
-Set these before running the app (no keys needed):
+For **local runs** (`python app.py`), set these before starting the app (no keys needed):
 
 - `AZURE_LANGUAGE_ENDPOINT`
 - `AZURE_OPENAI_ENDPOINT`
@@ -40,6 +40,10 @@ Set these before running the app (no keys needed):
 Optional for local/demo verification without Azure credentials:
 
 - `DEMO_USE_MOCK_ANALYZERS=true`
+
+For **Azure Web App deployments provisioned by Terraform**, these required variables
+(`AZURE_LANGUAGE_ENDPOINT`, `AZURE_OPENAI_ENDPOINT`, and `PHI_DEPLOYMENT_NAME`) are
+set automatically in App Service application settings.
 
 ## Demo: one-command build and teardown with Terraform
 
