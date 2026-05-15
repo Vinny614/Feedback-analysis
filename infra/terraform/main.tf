@@ -1,14 +1,31 @@
+locals {
+  unique_suffix_length      = 6
+  max_language_prefix_chars = 14
+  max_openai_prefix_chars   = 12
+
+  normalized_prefix = regexreplace(lower(var.name_prefix), "[^a-z0-9]", "")
+  effective_prefix  = local.normalized_prefix != "" ? local.normalized_prefix : "feedback"
+
+  language_prefix = substr(
+    local.effective_prefix,
+    0,
+    min(local.max_language_prefix_chars, length(local.effective_prefix))
+  )
+  openai_prefix = substr(
+    local.effective_prefix,
+    0,
+    min(local.max_openai_prefix_chars, length(local.effective_prefix))
+  )
+
+  language_name = "${local.language_prefix}lang${random_string.suffix.result}"
+  openai_name   = "${local.openai_prefix}openai${random_string.suffix.result}"
+}
+
 resource "random_string" "suffix" {
-  length  = 6
+  length  = local.unique_suffix_length
   upper   = false
   special = false
   numeric = true
-}
-
-locals {
-  normalized_prefix = regexreplace(lower(var.name_prefix), "[^a-z0-9]", "")
-  language_name     = "${substr(local.normalized_prefix, 0, 14)}lang${random_string.suffix.result}"
-  openai_name       = "${substr(local.normalized_prefix, 0, 12)}openai${random_string.suffix.result}"
 }
 
 resource "azurerm_resource_group" "this" {
