@@ -1,0 +1,98 @@
+name: Deploy or Teardown Azure Environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "Choose whether to deploy or teardown infrastructure"
+        required: true
+        type: choice
+        default: deploy
+        options:
+          - deploy
+          - teardown
+      confirm_teardown:
+        description: "Type DESTROY to confirm teardown (required only for teardown)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: feedback-analysis-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy_or_teardown:
+    runs-on: ubuntu-latest
+    env:
+      ARM_USE_OIDC: true
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_IN_AUTOMATION: true
+    defaults:
+      run:
+        shell: bash
+        working-directory: infra/terraform
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Validate teardown confirmation
+        if: ${{ github.event.inputs.operation == 'teardown' }}
+        run: |
+          if [[ "${{ github.event.inputs.confirm_teardown }}" != "DESTROY" ]]; then
+            echo "Teardown requires confirm_teardown=DESTROY"
+            exit 1
+          fi
+
+      - name: Create terraform.tfvars
+        run: |
+          if [[ -n "${{ secrets.TERRAFORM_TFVARS }}" ]]; then
+            printf "%s\n" "${{ secrets.TERRAFORM_TFVARS }}" > terraform.tfvars
+          else
+            cp terraform.tfvars.example terraform.tfvars
+          fi
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform apply
+        if: ${{ github.event.inputs.operation == 'deploy' }}
+        run: |
+          terraform plan -input=false -out=tfplan
+          terraform apply -input=false -auto-approve tfplan
+
+      - name: Deploy app code to Azure Web App
+        if: ${{ github.event.inputs.operation == 'deploy' }}
+        run: |
+          APP_NAME="$(terraform output -raw app_name)"
+          RESOURCE_GROUP_NAME="$(terraform output -raw resource_group_name)"
+          cd "${GITHUB_WORKSPACE}"
+          az webapp up \
+            --name "${APP_NAME}" \
+            --resource-group "${RESOURCE_GROUP_NAME}" \
+            --runtime "PYTHON:3.11"
+
+      - name: Terraform destroy
+        if: ${{ github.event.inputs.operation == 'teardown' }}
+        run: |
+          terraform plan -destroy -input=false -out=tfdestroyplan
+          terraform apply -input=false -auto-approve tfdestroyplan

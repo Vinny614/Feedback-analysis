@@ -97,6 +97,33 @@ terraform destroy
 
 This removes all Azure resources created for the demo.
 
+## GitHub Actions deployment (with teardown option)
+
+This repository includes a manual workflow at:
+
+- `.github/workflows/deploy.yml`
+
+The workflow supports two operations:
+
+- `deploy`: runs `terraform apply` and then deploys app code with `az webapp up`
+- `teardown`: runs `terraform destroy` (requires `confirm_teardown=DESTROY`)
+
+### Required GitHub repository secrets
+
+- `AZURE_CLIENT_ID`
+- `AZURE_TENANT_ID`
+- `AZURE_SUBSCRIPTION_ID`
+- `TERRAFORM_TFVARS` (optional, multi-line content for `infra/terraform/terraform.tfvars`)
+
+### How to run
+
+1. Open **Actions** in GitHub.
+2. Select **Deploy or Teardown Azure Environment**.
+3. Click **Run workflow**.
+4. Choose:
+   - `deploy` to provision + deploy app code, or
+   - `teardown` and set `confirm_teardown` to `DESTROY` to remove resources.
+
 ## Run locally
 
 ```bash
