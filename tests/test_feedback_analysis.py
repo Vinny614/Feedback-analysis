@@ -107,6 +107,11 @@ class FeedbackAnalysisTests(unittest.TestCase):
         )
         get_token.assert_called_once()
 
+    def test_build_service_headers_raises_clear_error_when_credentials_missing(self):
+        with patch("feedback_analysis._credential.get_token", side_effect=RuntimeError("no cred")):
+            with self.assertRaisesRegex(ValueError, "Azure credentials are unavailable"):
+                _build_service_headers("", "api-key")
+
 
 if __name__ == "__main__":
     unittest.main()

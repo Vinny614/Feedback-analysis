@@ -37,7 +37,7 @@ variable "azure_openai_sku" {
 variable "phi_deployment_name" {
   description = "Deployment name used by the application for the Azure OpenAI chat model."
   type        = string
-  default     = "phi-mini"
+  default     = "chat-model"
 }
 
 variable "phi_model_name" {

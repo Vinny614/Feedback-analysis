@@ -227,7 +227,13 @@ def _build_service_headers(api_key: str, api_key_header: str) -> Dict[str, str]:
     if api_key:
         return {api_key_header: api_key, "Content-Type": "application/json"}
 
-    token = _credential.get_token(_COGNITIVE_SERVICES_SCOPE).token
+    try:
+        token = _credential.get_token(_COGNITIVE_SERVICES_SCOPE).token
+    except Exception as exc:
+        raise ValueError(
+            "Azure credentials are unavailable. Set the Azure service key environment variables or sign in with az login."
+        ) from exc
+
     return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
 
