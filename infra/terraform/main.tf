@@ -4,7 +4,7 @@ locals {
   max_openai_prefix_chars   = 12
   max_app_prefix_chars      = 16
 
-  normalized_prefix = regexreplace(lower(var.name_prefix), "[^a-z0-9]", "")
+  normalized_prefix = replace(lower(var.name_prefix), "/[^a-z0-9]/", "")
   effective_prefix  = local.normalized_prefix != "" ? local.normalized_prefix : "feedback"
 
   language_prefix = substr(
