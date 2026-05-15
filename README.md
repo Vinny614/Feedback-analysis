@@ -92,7 +92,7 @@ Optional host/port overrides:
 3. Set the Startup Command to:
 
 ```bash
-gunicorn --bind=0.0.0.0:$PORT wsgi:app
+gunicorn --bind=0.0.0.0:$PORT wsgi:application
 ```
 
 The app now also supports `PORT` automatically when run directly.
