@@ -1,0 +1,7 @@
+resource_group_name      = "feedback-analysis-rg"
+location                 = "eastus"
+name_prefix              = "feedbackanalysis"
+phi_deployment_name      = "phi-mini"
+phi_model_name           = "Phi-3-mini-4k-instruct"
+phi_model_version        = "1"
+phi_deployment_capacity  = 1
