@@ -74,7 +74,7 @@ Open `http://localhost:8000`.
 
 Optional host/port overrides:
 
-- `FLASK_HOST` (defaults to `0.0.0.0`)
+- `FLASK_HOST` (defaults to `127.0.0.1`)
 - `FLASK_PORT` (defaults to `8000`)
 
 ## Run on Azure Web App (Linux)
