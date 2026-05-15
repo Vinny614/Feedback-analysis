@@ -5,7 +5,7 @@ import pandas as pd
 from feedback_analysis import detect_feedback_column, enrich_feedback_dataframe
 
 
-class _StubAnalyzer:
+class StubAnalyzer:
     def __init__(self, rows):
         self.rows = rows
 
@@ -21,7 +21,7 @@ class FeedbackAnalysisTests(unittest.TestCase):
     def test_enrich_feedback_dataframe_adds_expected_columns(self):
         df = pd.DataFrame({"Feedback": ["Great support", "Needs improvement"]})
 
-        azure_stub = _StubAnalyzer(
+        azure_stub = StubAnalyzer(
             [
                 {
                     "sentiment": "positive",
@@ -41,7 +41,7 @@ class FeedbackAnalysisTests(unittest.TestCase):
                 },
             ]
         )
-        phi_stub = _StubAnalyzer(
+        phi_stub = StubAnalyzer(
             [
                 {
                     "sentiment": "positive",

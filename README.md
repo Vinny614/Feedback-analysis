@@ -27,6 +27,8 @@ Set these before running the app:
 - `AZURE_OPENAI_ENDPOINT`
 - `AZURE_OPENAI_KEY`
 - `PHI_DEPLOYMENT_NAME`
+- `AZURE_LANGUAGE_API_VERSION` (optional, defaults to `2023-04-01`)
+- `AZURE_OPENAI_API_VERSION` (optional, defaults to `2024-06-01`)
 
 Optional for local/demo verification without Azure credentials:
 
@@ -40,6 +42,11 @@ python app.py
 ```
 
 Open `http://localhost:8000`.
+
+Optional host/port overrides:
+
+- `FLASK_HOST` (defaults to `127.0.0.1`)
+- `FLASK_PORT` (defaults to `8000`)
 
 ## Run tests
 
