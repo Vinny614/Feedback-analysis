@@ -103,6 +103,8 @@ This repository includes a manual workflow at:
 
 - `.github/workflows/deploy.yml`
 
+The workflow opts JavaScript-based GitHub Actions into the Node.js 24 runtime to stay ahead of the Node.js 20 deprecation on GitHub-hosted runners.
+
 The workflow supports two operations:
 
 - `deploy`: runs `terraform apply` and then deploys app code with `az webapp up`
