@@ -26,9 +26,8 @@ locals {
   language_name = "${local.language_prefix}lang${random_string.suffix.result}"
   openai_name   = "${local.openai_prefix}openai${random_string.suffix.result}"
   app_name      = "${local.app_prefix}app${random_string.suffix.result}"
+  app_location  = trimspace(var.app_service_location) != "" ? var.app_service_location : azurerm_resource_group.this.location
 }
-
-data "azurerm_client_config" "current" {}
 
 resource "random_string" "suffix" {
   length  = local.unique_suffix_length
@@ -48,7 +47,6 @@ resource "azurerm_cognitive_account" "language" {
   resource_group_name   = azurerm_resource_group.this.name
   kind                  = "TextAnalytics"
   sku_name              = var.azure_language_sku
-  local_auth_enabled    = false
 }
 
 resource "azurerm_cognitive_account" "openai" {
@@ -58,7 +56,6 @@ resource "azurerm_cognitive_account" "openai" {
   kind                  = "OpenAI"
   sku_name              = var.azure_openai_sku
   custom_subdomain_name = local.openai_name
-  local_auth_enabled    = false
 }
 
 resource "azurerm_cognitive_deployment" "phi" {
@@ -77,25 +74,11 @@ resource "azurerm_cognitive_deployment" "phi" {
   }
 }
 
-# ── RBAC for the user running terraform (local development) ──────────────────
-
-resource "azurerm_role_assignment" "deployer_language" {
-  scope                = azurerm_cognitive_account.language.id
-  role_definition_name = "Cognitive Services User"
-  principal_id         = data.azurerm_client_config.current.object_id
-}
-
-resource "azurerm_role_assignment" "deployer_openai" {
-  scope                = azurerm_cognitive_account.openai.id
-  role_definition_name = "Cognitive Services OpenAI User"
-  principal_id         = data.azurerm_client_config.current.object_id
-}
-
 # ── App Service ───────────────────────────────────────────────────────────────
 
 resource "azurerm_service_plan" "this" {
   name                = "${local.app_prefix}-plan-${random_string.suffix.result}"
-  location            = azurerm_resource_group.this.location
+  location            = local.app_location
   resource_group_name = azurerm_resource_group.this.name
   os_type             = "Linux"
   sku_name            = var.app_service_sku
@@ -103,13 +86,9 @@ resource "azurerm_service_plan" "this" {
 
 resource "azurerm_linux_web_app" "this" {
   name                = local.app_name
-  location            = azurerm_resource_group.this.location
+  location            = local.app_location
   resource_group_name = azurerm_resource_group.this.name
   service_plan_id     = azurerm_service_plan.this.id
-
-  identity {
-    type = "SystemAssigned"
-  }
 
   site_config {
     application_stack {
@@ -120,22 +99,10 @@ resource "azurerm_linux_web_app" "this" {
 
   app_settings = {
     AZURE_LANGUAGE_ENDPOINT        = azurerm_cognitive_account.language.endpoint
+    AZURE_LANGUAGE_KEY             = azurerm_cognitive_account.language.primary_access_key
     AZURE_OPENAI_ENDPOINT          = azurerm_cognitive_account.openai.endpoint
+    AZURE_OPENAI_KEY               = azurerm_cognitive_account.openai.primary_access_key
     PHI_DEPLOYMENT_NAME            = azurerm_cognitive_deployment.phi.name
     SCM_DO_BUILD_DURING_DEPLOYMENT = "true"
   }
-}
-
-# RBAC for the App Service managed identity
-
-resource "azurerm_role_assignment" "app_language" {
-  scope                = azurerm_cognitive_account.language.id
-  role_definition_name = "Cognitive Services User"
-  principal_id         = azurerm_linux_web_app.this.identity[0].principal_id
-}
-
-resource "azurerm_role_assignment" "app_openai" {
-  scope                = azurerm_cognitive_account.openai.id
-  role_definition_name = "Cognitive Services OpenAI User"
-  principal_id         = azurerm_linux_web_app.this.identity[0].principal_id
 }

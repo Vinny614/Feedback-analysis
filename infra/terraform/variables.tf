@@ -10,6 +10,12 @@ variable "location" {
   default     = "eastus"
 }
 
+variable "app_service_location" {
+  description = "Azure region for the Linux Web App resources. Defaults to westus2 to avoid eastus App Service quota issues."
+  type        = string
+  default     = "westus2"
+}
+
 variable "name_prefix" {
   description = "Prefix used for globally unique Azure service names."
   type        = string
@@ -29,21 +35,21 @@ variable "azure_openai_sku" {
 }
 
 variable "phi_deployment_name" {
-  description = "Deployment name used by the application for the Phi model."
+  description = "Deployment name used by the application for the Azure OpenAI chat model."
   type        = string
-  default     = "phi-mini"
+  default     = "chat-model"
 }
 
 variable "phi_model_name" {
-  description = "Model name for Azure OpenAI deployment."
+  description = "Model name for the Azure OpenAI chat deployment."
   type        = string
-  default     = "Phi-3-mini-4k-instruct"
+  default     = "gpt-35-turbo"
 }
 
 variable "phi_model_version" {
-  description = "Model version for Azure OpenAI deployment."
+  description = "Model version for the Azure OpenAI chat deployment."
   type        = string
-  default     = "1"
+  default     = "0125"
 }
 
 variable "phi_deployment_capacity" {

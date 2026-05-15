@@ -53,11 +53,13 @@ def index():
                 azure_analyzer = AzureLanguageAnalyzer(
                     endpoint=os.getenv("AZURE_LANGUAGE_ENDPOINT", ""),
                     api_version=os.getenv("AZURE_LANGUAGE_API_VERSION", "2023-04-01"),
+                    api_key=os.getenv("AZURE_LANGUAGE_KEY", ""),
                 )
                 phi_analyzer = PhiAnalyzer(
                     endpoint=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
                     deployment=os.getenv("PHI_DEPLOYMENT_NAME", ""),
                     api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-06-01"),
+                    api_key=os.getenv("AZURE_OPENAI_KEY", ""),
                 )
 
             output_df = enrich_feedback_dataframe(
