@@ -18,34 +18,51 @@ A minimal Flask demo for analyzing feedback from an uploaded Excel file.
 - Renders the enriched table in the web UI
 - Lets you download the enriched file as Excel
 
+## Authentication — RBAC, no keys
+
+All Azure service calls use **Managed Identity / Entra ID (AAD) bearer tokens** via
+[`DefaultAzureCredential`](https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity.defaultazurecredential).
+No API keys are stored or required.
+
+- **On Azure App Service**: the system-assigned managed identity authenticates automatically.
+- **Locally**: `az login` is used; `DefaultAzureCredential` picks up your CLI session.
+
 ## Environment variables
 
-Set these before running the app:
+Set these before running the app (no keys needed):
 
 - `AZURE_LANGUAGE_ENDPOINT`
-- `AZURE_LANGUAGE_KEY`
 - `AZURE_OPENAI_ENDPOINT`
-- `AZURE_OPENAI_KEY`
 - `PHI_DEPLOYMENT_NAME`
 - `AZURE_LANGUAGE_API_VERSION` (optional, defaults to `2023-04-01`)
 - `AZURE_OPENAI_API_VERSION` (optional, defaults to `2024-06-01`)
-
-Defaults were validated with this demo implementation and are recommended unless your Azure resources require newer API versions.
 
 Optional for local/demo verification without Azure credentials:
 
 - `DEMO_USE_MOCK_ANALYZERS=true`
 
-## Provision Azure infrastructure with Terraform
+## Demo: one-command build and teardown with Terraform
 
-Terraform files are available in `infra/terraform` and create:
+Terraform provisions **everything** — AI services, RBAC assignments, and the App Service.
+`terraform destroy` tears it all down cleanly.
+
+### What Terraform creates
 
 - Resource Group
-- Azure AI Language (`TextAnalytics`) account
-- Azure OpenAI account
-- Azure OpenAI deployment for Phi model
+- Azure AI Language (`TextAnalytics`) account — key auth disabled
+- Azure OpenAI account + Phi model deployment — key auth disabled
+- **RBAC role assignments** for the identity running Terraform (for local development)
+- App Service Plan + Linux Web App with system-assigned managed identity
+- **RBAC role assignments** for the App Service managed identity
 
-1. Authenticate to Azure (for example with `az login`).
+### Deploy
+
+1. Authenticate to Azure:
+
+```bash
+az login
+```
+
 2. Initialize and apply Terraform:
 
 ```bash
@@ -55,22 +72,41 @@ terraform init
 terraform apply
 ```
 
-3. Use Terraform outputs to set app environment variables:
+3. Deploy the application code to the App Service:
 
-- `azure_language_endpoint` -> `AZURE_LANGUAGE_ENDPOINT`
-- `azure_language_key` -> `AZURE_LANGUAGE_KEY`
-- `azure_openai_endpoint` -> `AZURE_OPENAI_ENDPOINT`
-- `azure_openai_key` -> `AZURE_OPENAI_KEY`
-- `phi_deployment_name` -> `PHI_DEPLOYMENT_NAME`
+```bash
+cd ../..
+az webapp up \
+  --name <app_name_from_terraform_output> \
+  --resource-group feedback-analysis-rg \
+  --runtime "PYTHON:3.11"
+```
+
+4. The app URL is shown in the `app_url` Terraform output.
+
+### Tear down
+
+```bash
+cd infra/terraform
+terraform destroy
+```
+
+This removes all Azure resources created for the demo.
 
 ## Run locally
 
 ```bash
+az login
 python -m pip install -r requirements.txt
 python app.py
 ```
 
 Open `http://localhost:8000`.
+
+`DefaultAzureCredential` uses your `az login` session to authenticate to Azure AI services.
+Your account must have the **Cognitive Services User** role on the Language resource and the
+**Cognitive Services OpenAI User** role on the OpenAI resource — Terraform assigns these
+automatically for the identity that runs `terraform apply`.
 
 Optional host/port overrides:
 
@@ -79,23 +115,21 @@ Optional host/port overrides:
 
 ## Run on Azure Web App (Linux)
 
-1. Create a Python App Service and configure these app settings:
-   - `AZURE_LANGUAGE_ENDPOINT`
-   - `AZURE_LANGUAGE_KEY`
-   - `AZURE_OPENAI_ENDPOINT`
-   - `AZURE_OPENAI_KEY`
-   - `PHI_DEPLOYMENT_NAME`
-   - `DEMO_USE_MOCK_ANALYZERS` (optional)
-
-2. Deploy this repository to the Web App.
-
-3. Set the Startup Command to:
+The App Service is provisioned by Terraform with the correct managed identity and RBAC
+assignments. Deploy the code with:
 
 ```bash
-gunicorn --bind=0.0.0.0:$PORT wsgi:application
+az webapp up \
+  --name <app_name> \
+  --resource-group feedback-analysis-rg \
+  --runtime "PYTHON:3.11"
 ```
 
-The app now also supports `PORT` automatically when run directly.
+The startup command is already configured in Terraform:
+
+```
+gunicorn --bind=0.0.0.0:$PORT wsgi:application
+```
 
 ## Run tests
 

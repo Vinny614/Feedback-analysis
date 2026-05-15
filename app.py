@@ -52,12 +52,10 @@ def index():
             else:
                 azure_analyzer = AzureLanguageAnalyzer(
                     endpoint=os.getenv("AZURE_LANGUAGE_ENDPOINT", ""),
-                    api_key=os.getenv("AZURE_LANGUAGE_KEY", ""),
                     api_version=os.getenv("AZURE_LANGUAGE_API_VERSION", "2023-04-01"),
                 )
                 phi_analyzer = PhiAnalyzer(
                     endpoint=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
-                    api_key=os.getenv("AZURE_OPENAI_KEY", ""),
                     deployment=os.getenv("PHI_DEPLOYMENT_NAME", ""),
                     api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-06-01"),
                 )
@@ -72,7 +70,7 @@ def index():
             context["error"] = str(exc)
         except requests.RequestException:
             logger.exception("External analysis service request failed.")
-            context["error"] = "Analysis request to Azure services failed. Check endpoint and key configuration."
+            context["error"] = "Analysis request to Azure services failed. Check endpoint configuration and identity permissions."
         except Exception:
             logger.exception("Unexpected error while processing feedback upload.")
             context["error"] = "Unable to process the uploaded file."

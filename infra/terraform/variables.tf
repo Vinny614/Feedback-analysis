@@ -51,3 +51,9 @@ variable "phi_deployment_capacity" {
   type        = number
   default     = 1
 }
+
+variable "app_service_sku" {
+  description = "SKU for the App Service Plan (e.g. B1, B2, S1)."
+  type        = string
+  default     = "B1"
+}
