@@ -77,6 +77,17 @@ jobs:
       - name: Terraform validate
         run: terraform validate
 
+      - name: Import existing resource group into Terraform state
+        if: ${{ github.event.inputs.operation == 'deploy' }}
+        run: |
+          RESOURCE_GROUP_NAME="$(awk -F= '/^\s*resource_group_name\s*=/{gsub(/[ "]/,"",$2); print $2; exit}' terraform.tfvars)"
+          RESOURCE_GROUP_NAME="${RESOURCE_GROUP_NAME:-feedback-analysis-rg}"
+          RESOURCE_GROUP_ID="$(az group show --name "${RESOURCE_GROUP_NAME}" --query id -o tsv 2>/dev/null || true)"
+
+          if [[ -n "${RESOURCE_GROUP_ID}" ]] && ! terraform state show azurerm_resource_group.this >/dev/null 2>&1; then
+            terraform import -input=false azurerm_resource_group.this "${RESOURCE_GROUP_ID}"
+          fi
+
       - name: Terraform apply
         if: ${{ github.event.inputs.operation == 'deploy' }}
         run: |
