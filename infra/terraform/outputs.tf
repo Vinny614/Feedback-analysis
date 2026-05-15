@@ -17,3 +17,13 @@ output "app_url" {
   description = "Public URL of the deployed demo web application."
   value       = "https://${azurerm_linux_web_app.this.default_hostname}"
 }
+
+output "app_name" {
+  description = "Azure Web App name."
+  value       = azurerm_linux_web_app.this.name
+}
+
+output "resource_group_name" {
+  description = "Azure resource group name used for the deployment."
+  value       = azurerm_resource_group.this.name
+}
