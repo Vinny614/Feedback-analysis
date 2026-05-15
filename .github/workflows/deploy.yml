@@ -74,6 +74,16 @@ jobs:
       - name: Terraform init
         run: terraform init -input=false
 
+      - name: Restore Terraform state cache
+        id: terraform_state_cache_restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            infra/terraform/terraform.tfstate
+          key: terraform-state-${{ github.repository }}-${{ github.ref_name }}
+          restore-keys: |
+            terraform-state-${{ github.repository }}-${{ github.ref_name }}-
+
       - name: Terraform validate
         run: terraform validate
 
@@ -141,3 +151,11 @@ jobs:
         run: |
           terraform plan -destroy -input=false -out=tfdestroyplan
           terraform apply -input=false -auto-approve tfdestroyplan
+
+      - name: Save Terraform state cache
+        if: success() && hashFiles('infra/terraform/terraform.tfstate') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            infra/terraform/terraform.tfstate
+          key: terraform-state-${{ github.repository }}-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
