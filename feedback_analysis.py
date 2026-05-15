@@ -19,6 +19,9 @@ PREFERRED_FEEDBACK_COLUMNS = {
 
 POSITIVE_HINTS = {"good", "great", "helpful", "excellent", "love", "fast", "happy"}
 NEGATIVE_HINTS = {"bad", "poor", "slow", "issue", "problem", "hate", "delay"}
+MAX_KEY_PHRASES = 5
+MAX_OPINION_TOKENS = 3
+MIN_SENTIMENT_TOTAL = 1
 
 
 @dataclass
@@ -41,16 +44,20 @@ class DemoHeuristicAnalyzer:
             else:
                 sentiment = "neutral"
 
-            key_phrases = list(dict.fromkeys(words[:5]))
+            key_phrases = list(dict.fromkeys(words[:MAX_KEY_PHRASES]))
             if self.mode == "azure":
-                total = max(len(positives) + len(negatives), 1)
+                total = max(len(positives) + len(negatives), MIN_SENTIMENT_TOTAL)
                 results.append(
                     {
                         "sentiment": sentiment,
                         "opinion_mining": [
-                            {"target": token, "sentiment": "positive"} for token in positives[:3]
+                            {"target": token, "sentiment": "positive"}
+                            for token in positives[:MAX_OPINION_TOKENS]
                         ]
-                        + [{"target": token, "sentiment": "negative"} for token in negatives[:3]],
+                        + [
+                            {"target": token, "sentiment": "negative"}
+                            for token in negatives[:MAX_OPINION_TOKENS]
+                        ],
                         "key_phrases": key_phrases,
                         "confidence_positive": round(len(positives) / total, 2),
                         "confidence_neutral": 0.0 if positives or negatives else 1.0,
@@ -61,7 +68,8 @@ class DemoHeuristicAnalyzer:
                 results.append(
                     {
                         "sentiment": sentiment,
-                        "opinion_mining": positives[:3] + negatives[:3],
+                        "opinion_mining": positives[:MAX_OPINION_TOKENS]
+                        + negatives[:MAX_OPINION_TOKENS],
                         "key_phrases": key_phrases,
                     }
                 )
