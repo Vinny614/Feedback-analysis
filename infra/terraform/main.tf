@@ -89,6 +89,9 @@ resource "azurerm_linux_web_app" "this" {
   location            = local.app_location
   resource_group_name = azurerm_resource_group.this.name
   service_plan_id     = azurerm_service_plan.this.id
+  identity {
+    type = "SystemAssigned"
+  }
 
   site_config {
     application_stack {
@@ -99,10 +102,22 @@ resource "azurerm_linux_web_app" "this" {
 
   app_settings = {
     AZURE_LANGUAGE_ENDPOINT        = azurerm_cognitive_account.language.endpoint
-    AZURE_LANGUAGE_KEY             = azurerm_cognitive_account.language.primary_access_key
     AZURE_OPENAI_ENDPOINT          = azurerm_cognitive_account.openai.endpoint
-    AZURE_OPENAI_KEY               = azurerm_cognitive_account.openai.primary_access_key
     PHI_DEPLOYMENT_NAME            = azurerm_cognitive_deployment.phi.name
     SCM_DO_BUILD_DURING_DEPLOYMENT = "true"
   }
+}
+
+resource "azurerm_role_assignment" "app_language_user" {
+  scope                = azurerm_cognitive_account.language.id
+  role_definition_name = "Cognitive Services User"
+  principal_id         = azurerm_linux_web_app.this.identity[0].principal_id
+  principal_type       = "ServicePrincipal"
+}
+
+resource "azurerm_role_assignment" "app_openai_user" {
+  scope                = azurerm_cognitive_account.openai.id
+  role_definition_name = "Cognitive Services OpenAI User"
+  principal_id         = azurerm_linux_web_app.this.identity[0].principal_id
+  principal_type       = "ServicePrincipal"
 }
