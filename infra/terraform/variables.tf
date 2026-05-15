@@ -43,13 +43,13 @@ variable "phi_deployment_name" {
 variable "phi_model_name" {
   description = "Model name for the Azure OpenAI chat deployment."
   type        = string
-  default     = "gpt-35-turbo"
+  default     = "gpt-4o-mini"
 }
 
 variable "phi_model_version" {
   description = "Model version for the Azure OpenAI chat deployment."
   type        = string
-  default     = "0125"
+  default     = "2024-07-18"
 }
 
 variable "phi_deployment_capacity" {
