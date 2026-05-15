@@ -5,3 +5,4 @@ phi_deployment_name      = "phi-mini"
 phi_model_name           = "Phi-3-mini-4k-instruct"
 phi_model_version        = "1"
 phi_deployment_capacity  = 1
+app_service_sku          = "B1"

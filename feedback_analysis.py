@@ -5,6 +5,10 @@ from typing import Any, Dict, List
 
 import pandas as pd
 import requests
+from azure.identity import DefaultAzureCredential
+
+_credential = DefaultAzureCredential()
+_COGNITIVE_SERVICES_SCOPE = "https://cognitiveservices.azure.com/.default"
 
 
 PREFERRED_FEEDBACK_COLUMNS = {
@@ -79,20 +83,21 @@ class DemoHeuristicAnalyzer:
 @dataclass
 class AzureLanguageAnalyzer:
     endpoint: str
-    api_key: str
     api_version: str = "2023-04-01"
 
     def analyze(self, texts: List[str]) -> List[Dict[str, Any]]:
-        if not self.endpoint or not self.api_key:
+        if not self.endpoint:
             raise ValueError(
-                "Azure Language credentials are missing. Set AZURE_LANGUAGE_ENDPOINT and AZURE_LANGUAGE_KEY."
+                "Azure Language endpoint is missing. Set AZURE_LANGUAGE_ENDPOINT."
             )
 
+        token = _credential.get_token(_COGNITIVE_SERVICES_SCOPE).token
+        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
         documents = [{"id": str(i + 1), "language": "en", "text": text} for i, text in enumerate(texts)]
 
         sentiment_response = requests.post(
             f"{self.endpoint.rstrip('/')}/language/:analyze-text?api-version={self.api_version}",
-            headers={"Ocp-Apim-Subscription-Key": self.api_key, "Content-Type": "application/json"},
+            headers=headers,
             json={
                 "kind": "SentimentAnalysis",
                 "analysisInput": {"documents": documents},
@@ -104,7 +109,7 @@ class AzureLanguageAnalyzer:
 
         keyphrase_response = requests.post(
             f"{self.endpoint.rstrip('/')}/language/:analyze-text?api-version={self.api_version}",
-            headers={"Ocp-Apim-Subscription-Key": self.api_key, "Content-Type": "application/json"},
+            headers=headers,
             json={
                 "kind": "KeyPhraseExtraction",
                 "analysisInput": {"documents": documents},
@@ -153,21 +158,22 @@ class AzureLanguageAnalyzer:
 @dataclass
 class PhiAnalyzer:
     endpoint: str
-    api_key: str
     deployment: str
     api_version: str = "2024-06-01"
 
     def analyze(self, texts: List[str]) -> List[Dict[str, Any]]:
-        if not self.endpoint or not self.api_key or not self.deployment:
+        if not self.endpoint or not self.deployment:
             raise ValueError(
-                "Phi model credentials are missing. Set AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_KEY, and PHI_DEPLOYMENT_NAME."
+                "Phi model configuration is missing. Set AZURE_OPENAI_ENDPOINT and PHI_DEPLOYMENT_NAME."
             )
 
+        token = _credential.get_token(_COGNITIVE_SERVICES_SCOPE).token
+        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
         results = []
         for text in texts:
             response = requests.post(
                 f"{self.endpoint.rstrip('/')}/openai/deployments/{self.deployment}/chat/completions?api-version={self.api_version}",
-                headers={"api-key": self.api_key, "Content-Type": "application/json"},
+                headers=headers,
                 json={
                     "temperature": 0,
                     "messages": [
