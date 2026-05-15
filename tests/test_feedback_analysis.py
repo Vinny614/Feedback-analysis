@@ -67,6 +67,9 @@ class FeedbackAnalysisTests(unittest.TestCase):
 
         self.assertEqual(enriched.loc[0, "azure_sentiment"], "positive")
         self.assertEqual(enriched.loc[1, "phi_sentiment"], "negative")
+        self.assertEqual(enriched.loc[0, "azure_confidence_positive"], 0.99)
+        self.assertEqual(enriched.loc[1, "azure_confidence_negative"], 0.89)
+        self.assertEqual(enriched.loc[0, "azure_opinion_mining"], "support:positive")
 
 
 if __name__ == "__main__":

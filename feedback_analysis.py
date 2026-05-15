@@ -232,6 +232,18 @@ def _format_list(value: Any) -> str:
     return str(value)
 
 
+def _format_azure_opinions(opinion_mining: Any) -> str:
+    normalized = []
+    for item in opinion_mining or []:
+        if isinstance(item, dict):
+            target = item.get("target", "").strip()
+            sentiment = item.get("sentiment", "").strip()
+            normalized.append(f"{target}:{sentiment}" if target or sentiment else "")
+        else:
+            normalized.append(str(item))
+    return _format_list(normalized)
+
+
 def enrich_feedback_dataframe(
     df: pd.DataFrame, feedback_column: str, azure_analyzer: Any, phi_analyzer: Any
 ) -> pd.DataFrame:
@@ -246,13 +258,7 @@ def enrich_feedback_dataframe(
 
     enriched["azure_sentiment"] = [result.get("sentiment", "") for result in azure_results]
     enriched["azure_opinion_mining"] = [
-        _format_list(
-            [
-                f"{item.get('target', '').strip()}:{item.get('sentiment', '').strip()}" if isinstance(item, dict) else item
-                for item in result.get("opinion_mining", [])
-            ]
-        )
-        for result in azure_results
+        _format_azure_opinions(result.get("opinion_mining", [])) for result in azure_results
     ]
     enriched["azure_key_phrases"] = [_format_list(result.get("key_phrases", [])) for result in azure_results]
     enriched["azure_confidence_positive"] = [result.get("confidence_positive", "") for result in azure_results]

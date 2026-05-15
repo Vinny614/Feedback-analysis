@@ -1,8 +1,10 @@
 import base64
 import io
+import logging
 import os
 
 import pandas as pd
+import requests
 from flask import Flask, render_template, request
 
 from feedback_analysis import (
@@ -14,6 +16,7 @@ from feedback_analysis import (
 )
 
 app = Flask(__name__)
+logger = logging.getLogger(__name__)
 
 
 def _build_download_link(df: pd.DataFrame) -> str:
@@ -63,8 +66,14 @@ def index():
             context["table_html"] = output_df.to_html(index=False, classes="result-table")
             context["download_url"] = _build_download_link(output_df)
             context["feedback_column"] = feedback_column
-        except Exception as exc:
+        except ValueError as exc:
             context["error"] = str(exc)
+        except requests.RequestException:
+            logger.exception("External analysis service request failed.")
+            context["error"] = "Analysis request to Azure services failed. Check endpoint and key configuration."
+        except Exception:
+            logger.exception("Unexpected error while processing feedback upload.")
+            context["error"] = "Unable to process the uploaded file."
 
     return render_template("index.html", **context)
 
