@@ -154,7 +154,7 @@ jobs:
           terraform apply -input=false -auto-approve tfdestroyplan
 
       - name: Save Terraform state cache
-        if: ${{ always() && hashFiles('infra/terraform/terraform.tfstate') != '' }}
+        if: ${{ success() && hashFiles('infra/terraform/terraform.tfstate') != '' }}
         uses: actions/cache/save@v4
         with:
           path: |
