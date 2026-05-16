@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -12,6 +13,7 @@ from azure.identity import DefaultAzureCredential
 
 _credential = DefaultAzureCredential()
 _COGNITIVE_SERVICES_SCOPE = "https://cognitiveservices.azure.com/.default"
+_logger = logging.getLogger(__name__)
 
 
 PREFERRED_FEEDBACK_COLUMNS = {
@@ -34,6 +36,16 @@ BASE_RETRY_SECONDS = 1
 MAX_RETRY_SECONDS = 30
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 MAX_CONCURRENT_ANALYSIS_REQUESTS = 8
+_AZURE_MAX_BATCH_SIZE = 25
+
+_EMPTY_AZURE_ROW: Dict[str, Any] = {
+    "sentiment": "",
+    "opinion_mining": [],
+    "key_phrases": [],
+    "confidence_positive": None,
+    "confidence_neutral": None,
+    "confidence_negative": None,
+}
 
 
 @dataclass
@@ -103,7 +115,30 @@ class AzureLanguageAnalyzer:
         headers = _build_service_headers(
             api_key=self.api_key, api_key_header="Ocp-Apim-Subscription-Key"
         )
-        documents = [{"id": str(i + 1), "language": "en", "text": text} for i, text in enumerate(texts)]
+
+        all_results: List[Dict[str, Any]] = []
+        for chunk_start in range(0, len(texts), _AZURE_MAX_BATCH_SIZE):
+            chunk = texts[chunk_start : chunk_start + _AZURE_MAX_BATCH_SIZE]
+            try:
+                all_results.extend(self._analyze_chunk(chunk, headers))
+            except Exception:
+                _logger.warning(
+                    "Azure Language batch failed for rows %d-%d; using empty placeholders.",
+                    chunk_start,
+                    chunk_start + len(chunk) - 1,
+                    exc_info=True,
+                )
+                all_results.extend([dict(_EMPTY_AZURE_ROW) for _ in chunk])
+
+        return all_results
+
+    def _analyze_chunk(
+        self, texts: List[str], headers: Dict[str, str]
+    ) -> List[Dict[str, Any]]:
+        documents = [
+            {"id": str(i + 1), "language": "en", "text": text}
+            for i, text in enumerate(texts)
+        ]
 
         sentiment_response = _post_with_retry(
             f"{self.endpoint.rstrip('/')}/language/:analyze-text?api-version={self.api_version}",
@@ -185,35 +220,39 @@ class PhiAnalyzer:
             return list(executor.map(partial(self._analyze_one, headers=headers), texts))
 
     def _analyze_one(self, text: str, headers: Dict[str, str]) -> Dict[str, Any]:
-        response = _post_with_retry(
-            f"{self.endpoint.rstrip('/')}/openai/deployments/{self.deployment}/chat/completions?api-version={self.api_version}",
-            headers=headers,
-            json={
-                "temperature": 0,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are a feedback analyst. Return JSON with keys sentiment (positive|neutral|negative|mixed), "
-                            "opinion_mining (array of short opinions), and key_phrases (array)."
-                        ),
-                    },
-                    {"role": "user", "content": text},
-                ],
-                "response_format": {"type": "json_object"},
-            },
-            timeout=30,
-        )
-        response_payload = response.json()
-        choice = response_payload.get("choices", [{}])[0]
-        message = choice.get("message", {})
-        content = message.get("content", "{}")
-        parsed = _safe_parse_json(content)
-        return {
-            "sentiment": parsed.get("sentiment", ""),
-            "opinion_mining": parsed.get("opinion_mining", []),
-            "key_phrases": parsed.get("key_phrases", []),
-        }
+        try:
+            response = _post_with_retry(
+                f"{self.endpoint.rstrip('/')}/openai/deployments/{self.deployment}/chat/completions?api-version={self.api_version}",
+                headers=headers,
+                json={
+                    "temperature": 0,
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are a feedback analyst. Return JSON with keys sentiment (positive|neutral|negative|mixed), "
+                                "opinion_mining (array of short opinions), and key_phrases (array)."
+                            ),
+                        },
+                        {"role": "user", "content": text},
+                    ],
+                    "response_format": {"type": "json_object"},
+                },
+                timeout=30,
+            )
+            response_payload = response.json()
+            choice = response_payload.get("choices", [{}])[0]
+            message = choice.get("message", {})
+            content = message.get("content", "{}")
+            parsed = _safe_parse_json(content)
+            return {
+                "sentiment": parsed.get("sentiment", ""),
+                "opinion_mining": parsed.get("opinion_mining", []),
+                "key_phrases": parsed.get("key_phrases", []),
+            }
+        except Exception:
+            _logger.warning("Language model analysis failed for a row; using empty placeholder.", exc_info=True)
+            return {"sentiment": "", "opinion_mining": [], "key_phrases": []}
 
 
 def _safe_parse_json(value: str) -> Dict[str, Any]:
