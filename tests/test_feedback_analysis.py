@@ -11,6 +11,7 @@ from feedback_analysis import (
     _build_service_headers,
     AzureLanguageAnalyzer,
     PhiAnalyzer,
+    build_language_model_enrichment_values,
     detect_feedback_column,
     enrich_feedback_dataframe,
 )
@@ -90,6 +91,27 @@ class FeedbackAnalysisTests(unittest.TestCase):
         self.assertEqual(enriched.loc[0, "azure_confidence_positive"], 0.99)
         self.assertEqual(enriched.loc[1, "azure_confidence_negative"], 0.89)
         self.assertEqual(enriched.loc[0, "azure_opinion_mining"], "support:positive")
+
+    def test_build_language_model_enrichment_values_formats_item_scores(self):
+        values = build_language_model_enrichment_values(
+            [
+                {
+                    "sentiment": "mixed",
+                    "opinion_mining": [
+                        {"item": "support", "positivity_score": 82},
+                        {"target": "response time", "score": 0.2},
+                        "pricing",
+                    ],
+                    "key_phrases": ["support", "response time"],
+                }
+            ],
+            1,
+        )
+
+        self.assertEqual(
+            values["language_model_opinion_mining"][0],
+            "support (82/100); response time (60/100); pricing",
+        )
 
     def test_enrich_feedback_dataframe_raises_on_size_mismatch(self):
         df = pd.DataFrame({"Feedback": ["Great support", "Needs improvement"]})

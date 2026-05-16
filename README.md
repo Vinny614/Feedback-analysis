@@ -11,7 +11,7 @@ A minimal Flask demo for analyzing feedback from an uploaded Excel file.
   - opinion mining
   - key phrases
   - confidence scores
-- Adds Azure OpenAI chat-model outputs as new columns:
+- Adds Azure OpenAI GPT model outputs as new columns:
   - sentiment
   - opinion mining
   - key phrases
@@ -36,6 +36,8 @@ For **local runs** (`python app.py`), set these before starting the app (no keys
 - `AZURE_LANGUAGE_ENDPOINT`
 - `AZURE_OPENAI_ENDPOINT`
 - `PHI_DEPLOYMENT_NAME`
+- `PHI_MODEL_NAME` (optional, used for UI model labeling)
+- `PHI_MODEL_VERSION` (optional, used for UI model labeling)
 - `AZURE_LANGUAGE_API_VERSION` (optional, defaults to `2023-04-01`)
 - `AZURE_OPENAI_API_VERSION` (optional, defaults to `2025-01-01-preview`)
 
@@ -55,9 +57,10 @@ Optional processing controls:
 - `MAX_CONCURRENT_ANALYSIS_REQUESTS` (defaults to `4`)
 - `MAX_BACKGROUND_JOBS` (defaults to `2`)
 
-For **Azure Web App deployments provisioned by Terraform**, the required endpoints and
-deployment name are set automatically in App Service application settings, and Terraform
-configures managed identity role assignments for Azure AI Language and Azure OpenAI.
+For **Azure Web App deployments provisioned by Terraform**, the required endpoints,
+deployment name, and model metadata are set automatically in App Service application
+settings, and Terraform configures managed identity role assignments for Azure AI Language
+and Azure OpenAI.
 
 ## Demo: one-command build and teardown with Terraform
 

@@ -67,6 +67,9 @@ class AppTests(unittest.TestCase):
         self.assertEqual(payload["total_rows"], 2)
         self.assertTrue(payload["download_url"])
         self.assertIn("azure_sentiment", payload["table_columns"])
+        self.assertIn("overall_summary", payload)
+        self.assertIn("trend", payload["overall_summary"])
+        self.assertIn("recommended_actions", payload["overall_summary"])
 
     def test_upload_rejects_files_above_max_rows(self):
         os.environ["MAX_UPLOAD_ROWS"] = "1"
@@ -101,6 +104,18 @@ class AppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         with feedback_app._jobs_lock:
             self.assertEqual(len(feedback_app._analysis_jobs), 1)
+
+    def test_model_label_prefers_model_name_and_version_over_deployment_name(self):
+        os.environ["PHI_DEPLOYMENT_NAME"] = "chat-model"
+        os.environ["PHI_MODEL_NAME"] = "gpt-4.1-mini"
+        os.environ["PHI_MODEL_VERSION"] = "2025-04-14"
+
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        page = response.get_data(as_text=True)
+        self.assertIn("gpt-4.1-mini (2025-04-14)", page)
+        self.assertNotIn(">chat-model<", page)
 
     def test_status_returns_partial_table_updates_while_job_is_running(self):
         df = pd.DataFrame({"Feedback": ["Great support", "Needs improvement"]})

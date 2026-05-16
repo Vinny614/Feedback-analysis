@@ -4,6 +4,7 @@ import logging
 import os
 import threading
 import uuid
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict
 
@@ -54,7 +55,117 @@ def _resolve_language_model_deployment_name() -> str:
 
 
 def _resolve_language_model_name() -> str:
+    model_name = os.getenv("LANGUAGE_MODEL_NAME", "").strip() or os.getenv(
+        "PHI_MODEL_NAME", ""
+    ).strip()
+    model_version = os.getenv("LANGUAGE_MODEL_VERSION", "").strip() or os.getenv(
+        "PHI_MODEL_VERSION", ""
+    ).strip()
+    if model_name and model_version:
+        return f"{model_name} ({model_version})"
+    if model_name:
+        return model_name
     return _resolve_language_model_deployment_name() or "Not configured"
+
+
+def _split_semicolon_values(value: Any) -> list[str]:
+    return [item.strip() for item in str(value).split(";") if item and item.strip()]
+
+
+def _extract_mentions_with_scores(value: Any) -> list[tuple[str, int | None]]:
+    mentions: list[tuple[str, int | None]] = []
+    for chunk in _split_semicolon_values(value):
+        if chunk.endswith("/100)") and " (" in chunk:
+            prefix, score_part = chunk.rsplit(" (", 1)
+            score_text = score_part[:-5]
+            try:
+                score = int(score_text)
+            except ValueError:
+                score = None
+            mentions.append((prefix.strip(), score))
+        else:
+            mentions.append((chunk, None))
+    return mentions
+
+
+def _build_overall_summary(output_df: pd.DataFrame) -> Dict[str, Any]:
+    if output_df.empty:
+        return {
+            "trend": "No feedback has been analyzed yet.",
+            "positive_trends": [],
+            "negative_trends": [],
+            "recommended_actions": [],
+        }
+
+    sentiment_counter: Counter[str] = Counter()
+    trend_counter: Counter[str] = Counter()
+    positive_items: Counter[str] = Counter()
+    negative_items: Counter[str] = Counter()
+
+    for _, row in output_df.iterrows():
+        sentiment = str(row.get("language_model_sentiment", "")).strip().lower()
+        if not sentiment:
+            sentiment = str(row.get("azure_sentiment", "")).strip().lower()
+        if sentiment in {"positive", "neutral", "negative", "mixed"}:
+            sentiment_counter[sentiment] += 1
+
+        for key_column in ("language_model_key_phrases", "azure_key_phrases"):
+            for phrase in _split_semicolon_values(row.get(key_column, "")):
+                trend_counter[phrase.lower()] += 1
+
+        for mention, score in _extract_mentions_with_scores(
+            row.get("language_model_opinion_mining", "")
+        ):
+            if not mention:
+                continue
+            mention_key = mention.lower()
+            if score is None:
+                continue
+            if score >= 60:
+                positive_items[mention_key] += 1
+            elif score <= 40:
+                negative_items[mention_key] += 1
+
+    total_sentiments = sum(sentiment_counter.values())
+    if total_sentiments:
+        positive_ratio = sentiment_counter.get("positive", 0) / total_sentiments
+        negative_ratio = sentiment_counter.get("negative", 0) / total_sentiments
+        if positive_ratio >= 0.5 and negative_ratio < 0.25:
+            trend_text = "Overall sentiment trend is positive."
+        elif negative_ratio >= 0.4:
+            trend_text = "Overall sentiment trend is negative."
+        else:
+            trend_text = "Overall sentiment trend is mixed."
+    else:
+        trend_text = "Not enough sentiment data to determine a clear trend yet."
+
+    top_phrases = [name for name, _ in trend_counter.most_common(5)]
+    if top_phrases:
+        trend_text += f" Frequent themes: {', '.join(top_phrases)}."
+
+    positive_trends = [name for name, _ in positive_items.most_common(5)]
+    negative_trends = [name for name, _ in negative_items.most_common(5)]
+
+    recommended_actions: list[str] = []
+    if negative_trends:
+        recommended_actions.append(
+            f"Prioritize improvements on: {', '.join(negative_trends[:3])}."
+        )
+    if positive_trends:
+        recommended_actions.append(
+            f"Preserve and scale strengths in: {', '.join(positive_trends[:3])}."
+        )
+    if not recommended_actions:
+        recommended_actions.append(
+            "Collect more feedback detail to produce clearer action priorities."
+        )
+
+    return {
+        "trend": trend_text,
+        "positive_trends": positive_trends,
+        "negative_trends": negative_trends,
+        "recommended_actions": recommended_actions,
+    }
 
 
 def _format_request_exception(exc: requests.RequestException) -> str:
@@ -239,6 +350,7 @@ def index():
         "download_url": None,
         "feedback_column": None,
         "language_model_used": language_model_name,
+        "overall_summary": None,
         "job_id": None,
         "status_url": None,
     }
@@ -304,6 +416,7 @@ def analysis_job_status(job_id: str):
             .where(job["output_df"].notna(), "")
             .astype(str)
             .values.tolist(),
+            "overall_summary": _build_overall_summary(job["output_df"]),
         }
     response = jsonify(snapshot)
     response.headers["Cache-Control"] = "no-store"
