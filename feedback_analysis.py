@@ -3,6 +3,7 @@ import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from functools import partial
 from typing import Any, Dict, List
 
 import pandas as pd
@@ -181,7 +182,7 @@ class PhiAnalyzer:
         headers = _build_service_headers(api_key=self.api_key, api_key_header="api-key")
         max_workers = min(MAX_CONCURRENT_ANALYSIS_REQUESTS, len(texts))
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            return list(executor.map(lambda text: self._analyze_one(text, headers), texts))
+            return list(executor.map(partial(self._analyze_one, headers=headers), texts))
 
     def _analyze_one(self, text: str, headers: Dict[str, str]) -> Dict[str, Any]:
         response = _post_with_retry(

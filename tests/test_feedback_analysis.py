@@ -180,10 +180,13 @@ class FeedbackAnalysisTests(unittest.TestCase):
             "Fast response": {"sentiment": "positive", "opinion_mining": ["response"], "key_phrases": ["response"]},
         }
 
-        with patch.object(PhiAnalyzer, "_analyze_one", side_effect=lambda text, _headers: expected[text]) as analyze_one_mock:
+        with patch.object(
+            PhiAnalyzer, "_analyze_one", side_effect=lambda text, headers=None: expected[text]
+        ) as analyze_one_mock:
             result = analyzer.analyze(texts)
 
         self.assertEqual(result, [expected[text] for text in texts])
+        self.assertEqual(result, [expected["Great support"], expected["Needs improvement"], expected["Fast response"]])
         self.assertEqual(analyze_one_mock.call_count, len(texts))
 
 
