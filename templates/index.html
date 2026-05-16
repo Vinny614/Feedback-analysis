@@ -140,7 +140,7 @@
               return;
             }
 
-            setStatus("Processing rows: " + data.processed_rows + " / " + data.total_rows + "...");
+            setStatus(`Processing rows: ${data.processed_rows} / ${data.total_rows}...`);
             setTimeout(poll, 1500);
           } catch (error) {
             setStatus("Unable to fetch analysis status.", true);

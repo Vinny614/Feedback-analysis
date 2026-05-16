@@ -52,6 +52,8 @@ def _read_positive_int_env(name: str, default: int) -> int:
 MAX_CONCURRENT_ANALYSIS_REQUESTS = _read_positive_int_env(
     "MAX_CONCURRENT_ANALYSIS_REQUESTS", 4
 )
+# Default is conservative to reduce throttling/timeout pressure on shared quotas;
+# increase via MAX_CONCURRENT_ANALYSIS_REQUESTS when capacity allows.
 _AZURE_MAX_BATCH_SIZE = 25
 _DEFAULT_ANALYSIS_CHUNK_SIZE = 25
 

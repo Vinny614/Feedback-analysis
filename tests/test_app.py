@@ -92,7 +92,8 @@ class AppTests(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        self.assertNotIn("Please upload a file with at most 2 rows", response.get_data(as_text=True))
+        with feedback_app._jobs_lock:
+            self.assertEqual(len(feedback_app._analysis_jobs), 1)
 
 
 if __name__ == "__main__":
