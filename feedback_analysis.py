@@ -203,7 +203,10 @@ class PhiAnalyzer:
             },
             timeout=30,
         )
-        content = response.json().get("choices", [{}])[0].get("message", {}).get("content", "{}")
+        response_payload = response.json()
+        choice = response_payload.get("choices", [{}])[0]
+        message = choice.get("message", {})
+        content = message.get("content", "{}")
         parsed = _safe_parse_json(content)
         return {
             "sentiment": parsed.get("sentiment", ""),
