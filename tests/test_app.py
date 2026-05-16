@@ -12,6 +12,7 @@ import app as feedback_app
 FEEDBACK_TEXT_INDEX = 0
 AZURE_SENTIMENT_INDEX = 1
 LANGUAGE_MODEL_SENTIMENT_INDEX = 7
+ASYNC_TEST_TIMEOUT_SECONDS = 2
 
 
 class AppTests(unittest.TestCase):
@@ -131,7 +132,7 @@ class AppTests(unittest.TestCase):
         class PhiStub:
             def analyze(self, texts):
                 phi_started.set()
-                if not allow_phi_completion.wait(timeout=2):
+                if not allow_phi_completion.wait(timeout=ASYNC_TEST_TIMEOUT_SECONDS):
                     raise TimeoutError("Timed out waiting to finish language model analysis.")
                 return [
                     {
@@ -178,7 +179,7 @@ class AppTests(unittest.TestCase):
             self.assertIsNone(interim_payload["download_url"])
 
             allow_phi_completion.set()
-            deadline = time.monotonic() + 2
+            deadline = time.monotonic() + ASYNC_TEST_TIMEOUT_SECONDS
             final_payload = None
             while time.monotonic() < deadline:
                 final_response = self.client.get(f"/jobs/{job_id}/status")
