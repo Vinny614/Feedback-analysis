@@ -19,6 +19,10 @@ app = Flask(__name__)
 logger = logging.getLogger(__name__)
 
 
+def _resolve_language_model_name() -> str:
+    return os.getenv("PHI_DEPLOYMENT_NAME", "").strip() or "Not configured"
+
+
 def _format_request_exception(exc: requests.RequestException) -> str:
     response = getattr(exc, "response", None)
     if response is None:
@@ -60,13 +64,13 @@ def _build_download_link(df: pd.DataFrame) -> str:
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    default_model_name = os.getenv("PHI_DEPLOYMENT_NAME", "").strip() or "Not configured"
+    language_model_name = _resolve_language_model_name()
     context = {
         "table_html": None,
         "error": None,
         "download_url": None,
         "feedback_column": None,
-        "language_model_used": default_model_name,
+        "language_model_used": language_model_name,
     }
     if request.method == "POST":
         uploaded_file = request.files.get("feedback_file")
@@ -97,9 +101,7 @@ def index():
                     api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview"),
                     api_key=os.getenv("AZURE_OPENAI_KEY", ""),
                 )
-                context["language_model_used"] = (
-                    os.getenv("PHI_DEPLOYMENT_NAME", "").strip() or "Not configured"
-                )
+                context["language_model_used"] = _resolve_language_model_name()
 
             output_df = enrich_feedback_dataframe(
                 input_df, feedback_column, azure_analyzer, phi_analyzer
