@@ -100,8 +100,8 @@ jobs:
             }' terraform.tfvars
           )"
           RESOURCE_GROUP_NAME="${RESOURCE_GROUP_NAME:-feedback-analysis-rg}"
-          STATE_LIST_FILE="$(mktemp)"
-          STATE_LIST_ERROR_FILE="$(mktemp)"
+          STATE_LIST_FILE="$(mktemp "${TMPDIR:-/tmp}/state_list.XXXXXX")"
+          STATE_LIST_ERROR_FILE="$(mktemp "${TMPDIR:-/tmp}/state_list_error.XXXXXX")"
           AZ_GROUP_ERROR_FILE="$(mktemp)"
           trap 'rm -f "${STATE_LIST_FILE}" "${STATE_LIST_ERROR_FILE}" "${AZ_GROUP_ERROR_FILE}"' EXIT
 
