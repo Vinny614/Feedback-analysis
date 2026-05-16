@@ -75,6 +75,25 @@ class AppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("at most 1 row", response.get_data(as_text=True))
 
+    def test_upload_accepts_file_at_max_rows_boundary(self):
+        os.environ["MAX_UPLOAD_ROWS"] = "2"
+        df = pd.DataFrame({"Feedback": ["Great support", "Needs improvement"]})
+        file_obj = self._excel_bytes(df)
+
+        with patch.object(
+            feedback_app._job_executor,
+            "submit",
+            side_effect=lambda fn, *args, **kwargs: fn(*args, **kwargs),
+        ):
+            response = self.client.post(
+                "/",
+                data={"feedback_file": (file_obj, "feedback.xlsx")},
+                content_type="multipart/form-data",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("Please upload a file with at most 2 rows", response.get_data(as_text=True))
+
 
 if __name__ == "__main__":
     unittest.main()
