@@ -296,6 +296,7 @@ class PhiAnalyzer:
             parsed = _safe_parse_json(content)
             return {
                 "sentiment": parsed.get("sentiment", ""),
+                # Keep compatibility with older prompt variants that returned item_mentions.
                 "opinion_mining": _normalize_item_mentions(
                     parsed.get("opinion_mining", parsed.get("item_mentions", []))
                 ),
@@ -424,9 +425,11 @@ def _coerce_positivity_score(value: Any) -> int | None:
     except (TypeError, ValueError):
         return None
 
-    # Some models emit normalized sentiment in -1..1 rather than 0..100.
-    # Convert -1 (most negative) .. +1 (most positive) to 0..100 via (score + 1) * 50.
-    if -1 <= score <= 1:
+    # Support probability-style scores (0..1) by mapping to 0..100.
+    if 0 <= score <= 1:
+        score = score * 100
+    # Support normalized negative sentiment scores (-1..0) and convert to 0..100.
+    elif -1 <= score < 0:
         score = (score + 1) * 50
     return max(0, min(100, int(round(score))))
 

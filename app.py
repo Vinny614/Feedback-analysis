@@ -2,6 +2,7 @@ import base64
 import io
 import logging
 import os
+import re
 import threading
 import uuid
 from collections import Counter
@@ -28,10 +29,13 @@ app = Flask(__name__)
 logger = logging.getLogger(__name__)
 _jobs_lock = threading.Lock()
 _analysis_jobs: Dict[str, Dict[str, Any]] = {}
-SCORE_FORMAT_ENDING = "/100)"
 POSITIVE_MENTION_THRESHOLD = 60
 NEGATIVE_MENTION_THRESHOLD = 40
 MAX_ACTION_THEMES = 3
+TREND_POSITIVE_RATIO_THRESHOLD = 0.5
+TREND_NEGATIVE_RATIO_LOW_THRESHOLD = 0.25
+TREND_NEGATIVE_RATIO_HIGH_THRESHOLD = 0.4
+MENTION_SCORE_PATTERN = re.compile(r"^(?P<item>.+)\s\((?P<score>\d{1,3})/100\)$")
 
 
 def _read_positive_int_env(name: str, default: int) -> int:
@@ -79,14 +83,13 @@ def _split_semicolon_values(value: Any) -> list[str]:
 def _extract_mentions_with_scores(value: Any) -> list[tuple[str, int | None]]:
     mentions: list[tuple[str, int | None]] = []
     for chunk in _split_semicolon_values(value):
-        if chunk.endswith(SCORE_FORMAT_ENDING) and " (" in chunk:
-            prefix, score_part = chunk.rsplit(" (", 1)
-            score_text = score_part[: -len(SCORE_FORMAT_ENDING)]
+        match = MENTION_SCORE_PATTERN.match(chunk)
+        if match:
             try:
-                score = int(score_text)
+                score = int(match.group("score"))
             except ValueError:
                 score = None
-            mentions.append((prefix.strip(), score))
+            mentions.append((match.group("item").strip(), score))
         else:
             mentions.append((chunk, None))
     return mentions
@@ -134,9 +137,12 @@ def _build_overall_summary(output_df: pd.DataFrame) -> Dict[str, Any]:
     if total_sentiments:
         positive_ratio = sentiment_counter.get("positive", 0) / total_sentiments
         negative_ratio = sentiment_counter.get("negative", 0) / total_sentiments
-        if positive_ratio >= 0.5 and negative_ratio < 0.25:
+        if (
+            positive_ratio >= TREND_POSITIVE_RATIO_THRESHOLD
+            and negative_ratio < TREND_NEGATIVE_RATIO_LOW_THRESHOLD
+        ):
             trend_text = "Overall sentiment trend is positive."
-        elif negative_ratio >= 0.4:
+        elif negative_ratio >= TREND_NEGATIVE_RATIO_HIGH_THRESHOLD:
             trend_text = "Overall sentiment trend is negative."
         else:
             trend_text = "Overall sentiment trend is mixed."
