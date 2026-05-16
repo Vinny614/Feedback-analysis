@@ -118,7 +118,6 @@ jobs:
           if [[ -z "${RESOURCE_GROUP_ID}" ]] && find . -maxdepth 1 -name 'terraform.tfstate*' -print -quit | grep -q .; then
             echo "No live Azure resource group found for ${RESOURCE_GROUP_NAME}; removing stale cached Terraform state."
             rm -f terraform.tfstate terraform.tfstate.backup
-            touch "${STATE_LIST_FILE}"
           elif find . -maxdepth 1 -name 'terraform.tfstate*' -print -quit | grep -q .; then
             if ! terraform state list >"${STATE_LIST_FILE}" 2>"${STATE_LIST_ERROR_FILE}"; then
               echo "Unable to read Terraform state before import check. Error output:"
