@@ -167,7 +167,7 @@ def _process_analysis_job(job_id: str, feedback_column: str, use_mock: bool) -> 
                 output_df: pd.DataFrame = job["output_df"]
                 chunk_end = min(chunk_start + chunk_size, total_rows)
                 input_chunk = output_df.iloc[chunk_start:chunk_end, :].copy()
-                chunk_texts = input_chunk[feedback_column].fillna("").astype(str).tolist()
+            chunk_texts = input_chunk[feedback_column].fillna("").astype(str).tolist()
 
             azure_enrichment_values = build_azure_enrichment_values(
                 azure_analyzer.analyze(chunk_texts), len(input_chunk)

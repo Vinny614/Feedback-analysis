@@ -157,7 +157,7 @@ class AppTests(unittest.TestCase):
             )
 
             self.assertEqual(response.status_code, 200)
-            self.assertTrue(phi_started.wait(timeout=1))
+            self.assertTrue(phi_started.wait(timeout=ASYNC_TEST_TIMEOUT_SECONDS))
 
             with feedback_app._jobs_lock:
                 job_id = next(iter(feedback_app._analysis_jobs))
