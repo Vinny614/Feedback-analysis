@@ -33,7 +33,7 @@
   <body>
     <h1>Feedback Analysis Demo</h1>
     <p class="hint">
-      Upload an Excel file with feedback rows. The app adds Azure AI Language and Phi-model outputs as new columns.
+      Upload an Excel file with feedback rows. The app adds Azure AI Language and language model outputs as new columns.
     </p>
     <form method="post" enctype="multipart/form-data">
       <input type="file" name="feedback_file" accept=".xlsx,.xls" required />
@@ -46,6 +46,7 @@
 
     {% if table_html %}
     <p><strong>Detected feedback column:</strong> {{ feedback_column }}</p>
+    <p><strong>Language model used:</strong> {{ language_model_used }}</p>
     <p>
       <a href="{{ download_url }}" download="feedback_analysis_output.xlsx">Download enriched Excel</a>
     </p>

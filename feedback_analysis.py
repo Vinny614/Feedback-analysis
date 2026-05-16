@@ -295,8 +295,10 @@ def enrich_feedback_dataframe(
     enriched["azure_confidence_neutral"] = [result.get("confidence_neutral", "") for result in azure_results]
     enriched["azure_confidence_negative"] = [result.get("confidence_negative", "") for result in azure_results]
 
-    enriched["phi_sentiment"] = [result.get("sentiment", "") for result in phi_results]
-    enriched["phi_opinion_mining"] = [_format_list(result.get("opinion_mining", [])) for result in phi_results]
-    enriched["phi_key_phrases"] = [_format_list(result.get("key_phrases", [])) for result in phi_results]
+    enriched["language_model_sentiment"] = [result.get("sentiment", "") for result in phi_results]
+    enriched["language_model_opinion_mining"] = [
+        _format_list(result.get("opinion_mining", [])) for result in phi_results
+    ]
+    enriched["language_model_key_phrases"] = [_format_list(result.get("key_phrases", [])) for result in phi_results]
 
     return enriched

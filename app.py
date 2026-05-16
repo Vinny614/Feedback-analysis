@@ -60,7 +60,14 @@ def _build_download_link(df: pd.DataFrame) -> str:
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    context = {"table_html": None, "error": None, "download_url": None, "feedback_column": None}
+    default_model_name = os.getenv("PHI_DEPLOYMENT_NAME", "").strip() or "Not configured"
+    context = {
+        "table_html": None,
+        "error": None,
+        "download_url": None,
+        "feedback_column": None,
+        "language_model_used": default_model_name,
+    }
     if request.method == "POST":
         uploaded_file = request.files.get("feedback_file")
         if not uploaded_file or uploaded_file.filename == "":
@@ -77,6 +84,7 @@ def index():
             if use_mock:
                 azure_analyzer = DemoHeuristicAnalyzer(mode="azure")
                 phi_analyzer = DemoHeuristicAnalyzer(mode="phi")
+                context["language_model_used"] = "Demo heuristic analyzer"
             else:
                 azure_analyzer = AzureLanguageAnalyzer(
                     endpoint=os.getenv("AZURE_LANGUAGE_ENDPOINT", ""),
@@ -88,6 +96,9 @@ def index():
                     deployment=os.getenv("PHI_DEPLOYMENT_NAME", ""),
                     api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview"),
                     api_key=os.getenv("AZURE_OPENAI_KEY", ""),
+                )
+                context["language_model_used"] = (
+                    os.getenv("PHI_DEPLOYMENT_NAME", "").strip() or "Not configured"
                 )
 
             output_df = enrich_feedback_dataframe(
