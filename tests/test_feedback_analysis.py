@@ -186,7 +186,6 @@ class FeedbackAnalysisTests(unittest.TestCase):
             result = analyzer.analyze(texts)
 
         self.assertEqual(result, [expected[text] for text in texts])
-        self.assertEqual(result, [expected["Great support"], expected["Needs improvement"], expected["Fast response"]])
         self.assertEqual(analyze_one_mock.call_count, len(texts))
 
 
