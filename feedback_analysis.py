@@ -32,6 +32,7 @@ MAX_RETRY_ATTEMPTS = 4
 BASE_RETRY_SECONDS = 1
 MAX_RETRY_SECONDS = 30
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+MAX_CONCURRENT_ANALYSIS_REQUESTS = 8
 
 
 @dataclass
@@ -178,7 +179,7 @@ class PhiAnalyzer:
             return []
 
         headers = _build_service_headers(api_key=self.api_key, api_key_header="api-key")
-        max_workers = min(8, len(texts))
+        max_workers = min(MAX_CONCURRENT_ANALYSIS_REQUESTS, len(texts))
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             return list(executor.map(lambda text: self._analyze_one(text, headers), texts))
 
