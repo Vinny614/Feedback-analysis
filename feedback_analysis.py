@@ -281,9 +281,9 @@ def enrich_feedback_dataframe(
     texts = enriched[feedback_column].fillna("").astype(str).tolist()
 
     azure_results = azure_analyzer.analyze(texts)
-    phi_results = phi_analyzer.analyze(texts)
+    language_model_results = phi_analyzer.analyze(texts)
 
-    if len(azure_results) != len(enriched) or len(phi_results) != len(enriched):
+    if len(azure_results) != len(enriched) or len(language_model_results) != len(enriched):
         raise ValueError("Analyzer output size does not match the number of feedback rows.")
 
     enriched["azure_sentiment"] = [result.get("sentiment", "") for result in azure_results]
@@ -295,10 +295,14 @@ def enrich_feedback_dataframe(
     enriched["azure_confidence_neutral"] = [result.get("confidence_neutral", "") for result in azure_results]
     enriched["azure_confidence_negative"] = [result.get("confidence_negative", "") for result in azure_results]
 
-    enriched["language_model_sentiment"] = [result.get("sentiment", "") for result in phi_results]
-    enriched["language_model_opinion_mining"] = [
-        _format_list(result.get("opinion_mining", [])) for result in phi_results
+    enriched["language_model_sentiment"] = [
+        result.get("sentiment", "") for result in language_model_results
     ]
-    enriched["language_model_key_phrases"] = [_format_list(result.get("key_phrases", [])) for result in phi_results]
+    enriched["language_model_opinion_mining"] = [
+        _format_list(result.get("opinion_mining", [])) for result in language_model_results
+    ]
+    enriched["language_model_key_phrases"] = [
+        _format_list(result.get("key_phrases", [])) for result in language_model_results
+    ]
 
     return enriched

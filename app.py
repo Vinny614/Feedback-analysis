@@ -19,8 +19,14 @@ app = Flask(__name__)
 logger = logging.getLogger(__name__)
 
 
+def _resolve_language_model_deployment_name() -> str:
+    return os.getenv("LANGUAGE_MODEL_DEPLOYMENT_NAME", "").strip() or os.getenv(
+        "PHI_DEPLOYMENT_NAME", ""
+    ).strip()
+
+
 def _resolve_language_model_name() -> str:
-    return os.getenv("PHI_DEPLOYMENT_NAME", "").strip() or "Not configured"
+    return _resolve_language_model_deployment_name() or "Not configured"
 
 
 def _format_request_exception(exc: requests.RequestException) -> str:
@@ -97,7 +103,7 @@ def index():
                 )
                 phi_analyzer = PhiAnalyzer(
                     endpoint=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
-                    deployment=os.getenv("PHI_DEPLOYMENT_NAME", ""),
+                    deployment=_resolve_language_model_deployment_name(),
                     api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview"),
                     api_key=os.getenv("AZURE_OPENAI_KEY", ""),
                 )
