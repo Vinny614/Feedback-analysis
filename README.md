@@ -116,6 +116,8 @@ The workflow supports two operations:
 
 To avoid provisioning a brand-new infrastructure set on every re-run, the workflow restores and saves
 `infra/terraform/terraform.tfstate` between runs using GitHub Actions cache.
+If Azure no longer has the target resource group, the workflow drops the cached state before planning so
+the next deploy starts cleanly instead of reusing stale resource names.
 
 ### Required GitHub repository secrets
 
