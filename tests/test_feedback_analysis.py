@@ -11,6 +11,7 @@ from feedback_analysis import (
     _build_service_headers,
     AzureLanguageAnalyzer,
     PhiAnalyzer,
+    build_language_model_enrichment_values,
     detect_feedback_column,
     enrich_feedback_dataframe,
 )
@@ -90,6 +91,67 @@ class FeedbackAnalysisTests(unittest.TestCase):
         self.assertEqual(enriched.loc[0, "azure_confidence_positive"], 0.99)
         self.assertEqual(enriched.loc[1, "azure_confidence_negative"], 0.89)
         self.assertEqual(enriched.loc[0, "azure_opinion_mining"], "support:positive")
+
+    def test_build_language_model_enrichment_values_formats_item_scores(self):
+        values = build_language_model_enrichment_values(
+            [
+                {
+                    "sentiment": "mixed",
+                    "opinion_mining": [
+                        {"item": "support", "positivity_score": 82},
+                        {"item": "response time", "positivity_score": 0.2},
+                        "pricing",
+                    ],
+                    "key_phrases": ["support", "response time"],
+                }
+            ],
+            1,
+        )
+
+        self.assertEqual(
+            values["language_model_opinion_mining"][0],
+            "support (82/100); response time (20/100); pricing",
+        )
+
+    def test_build_language_model_enrichment_values_normalizes_negative_sentiment_scores(self):
+        values = build_language_model_enrichment_values(
+            [
+                {
+                    "sentiment": "mixed",
+                    "opinion_mining": [
+                        {"item": "checkout", "positivity_score": -1},
+                        {"item": "onboarding", "positivity_score": -0.5},
+                        {"item": "support", "positivity_score": 1.0},
+                    ],
+                    "key_phrases": [],
+                }
+            ],
+            1,
+        )
+
+        self.assertEqual(
+            values["language_model_opinion_mining"][0],
+            "checkout (0/100); onboarding (25/100); support (100/100)",
+        )
+
+    def test_build_language_model_enrichment_values_normalizes_zero_to_one_scores(self):
+        values = build_language_model_enrichment_values(
+            [
+                {
+                    "sentiment": "mixed",
+                    "opinion_mining": [
+                        {"item": "delivery", "positivity_score": 0.2},
+                        {"item": "clarity", "positivity_score": 0.0},
+                    ],
+                    "key_phrases": [],
+                }
+            ],
+            1,
+        )
+
+        self.assertEqual(
+            values["language_model_opinion_mining"][0], "delivery (20/100); clarity (0/100)"
+        )
 
     def test_enrich_feedback_dataframe_raises_on_size_mismatch(self):
         df = pd.DataFrame({"Feedback": ["Great support", "Needs improvement"]})

@@ -104,6 +104,8 @@ resource "azurerm_linux_web_app" "this" {
     AZURE_LANGUAGE_ENDPOINT        = azurerm_cognitive_account.language.endpoint
     AZURE_OPENAI_ENDPOINT          = azurerm_cognitive_account.openai.endpoint
     PHI_DEPLOYMENT_NAME            = azurerm_cognitive_deployment.phi.name
+    PHI_MODEL_NAME                 = var.phi_model_name
+    PHI_MODEL_VERSION              = var.phi_model_version
     SCM_DO_BUILD_DURING_DEPLOYMENT = "true"
   }
 }

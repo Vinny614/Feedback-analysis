@@ -31,6 +31,24 @@
       .progress {
         margin-top: 1rem;
       }
+      .summary {
+        margin-top: 1.25rem;
+        padding: 0.75rem 1rem;
+        border: 1px solid #d8d8d8;
+        border-radius: 6px;
+        background: #fafafa;
+      }
+      .summary h2 {
+        margin-top: 0;
+        font-size: 1.05rem;
+      }
+      .summary h3 {
+        margin-bottom: 0.35rem;
+        font-size: 0.95rem;
+      }
+      .summary ul {
+        margin-top: 0.2rem;
+      }
     </style>
   </head>
   <body>
@@ -58,6 +76,7 @@
       {% endif %}
     </p>
     <div id="results-table">{{ table_html|safe }}</div>
+    <div id="overall-summary" class="summary"></div>
     {% endif %}
 
     {% if status_url %}
@@ -68,6 +87,7 @@
         const tableEl = document.getElementById("results-table");
         const modelEl = document.getElementById("language-model-used");
         const downloadEl = document.getElementById("download-link");
+        const summaryEl = document.getElementById("overall-summary");
 
         function renderTable(columns, rows) {
           if (!tableEl || !Array.isArray(columns) || !Array.isArray(rows)) {
@@ -102,6 +122,29 @@
           tableEl.appendChild(table);
         }
 
+        function renderSummary(summary) {
+          if (!summaryEl || !summary) {
+            return;
+          }
+
+          const listItems = (items) =>
+            Array.isArray(items) && items.length
+              ? `<ul>${items.map((item) => `<li>${item}</li>`).join("")}</ul>`
+              : "<p>None highlighted yet.</p>";
+
+          summaryEl.innerHTML = `
+            <h2>Overall Feedback Summary</h2>
+            <h3>Trend</h3>
+            <p>${summary.trend || "No trend available yet."}</p>
+            <h3>Positive themes</h3>
+            ${listItems(summary.positive_trends)}
+            <h3>Negative themes</h3>
+            ${listItems(summary.negative_trends)}
+            <h3>Recommended actions</h3>
+            ${listItems(summary.recommended_actions)}
+          `;
+        }
+
         function setStatus(message, isError) {
           statusEl.textContent = message;
           statusEl.className = isError ? "error progress" : "progress";
@@ -120,6 +163,7 @@
               modelEl.textContent = data.language_model_used;
             }
             renderTable(data.table_columns, data.table_rows);
+            renderSummary(data.overall_summary);
 
             if (data.download_url) {
               downloadEl.textContent = "";

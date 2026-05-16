@@ -32,6 +32,9 @@ NEGATIVE_HINTS = {"bad", "poor", "slow", "issue", "problem", "hate", "delay"}
 MAX_KEY_PHRASES = 5
 MAX_OPINION_TOKENS = 3
 MIN_SENTIMENT_TOTAL = 1
+DEFAULT_POSITIVE_SCORE = 85
+DEFAULT_NEGATIVE_SCORE = 15
+DEFAULT_NEUTRAL_SCORE = 50
 MAX_RETRY_ATTEMPTS = 4
 BASE_RETRY_SECONDS = 1
 MAX_RETRY_SECONDS = 30
@@ -123,11 +126,22 @@ class DemoHeuristicAnalyzer:
                     }
                 )
             else:
+                mentions = [
+                    {"item": token, "positivity_score": DEFAULT_POSITIVE_SCORE}
+                    for token in positives[:MAX_OPINION_TOKENS]
+                ] + [
+                    {"item": token, "positivity_score": DEFAULT_NEGATIVE_SCORE}
+                    for token in negatives[:MAX_OPINION_TOKENS]
+                ]
+                if not mentions:
+                    mentions = [
+                        {"item": token, "positivity_score": DEFAULT_NEUTRAL_SCORE}
+                        for token in key_phrases[:MAX_OPINION_TOKENS]
+                    ]
                 results.append(
                     {
                         "sentiment": sentiment,
-                        "opinion_mining": positives[:MAX_OPINION_TOKENS]
-                        + negatives[:MAX_OPINION_TOKENS],
+                        "opinion_mining": mentions,
                         "key_phrases": key_phrases,
                     }
                 )
@@ -265,7 +279,8 @@ class PhiAnalyzer:
                             "role": "system",
                             "content": (
                                 "You are a feedback analyst. Return JSON with keys sentiment (positive|neutral|negative|mixed), "
-                                "opinion_mining (array of short opinions), and key_phrases (array)."
+                                "opinion_mining (array of objects with keys item and positivity_score as 0-100), "
+                                "and key_phrases (array). Focus on concise item-level analytics instead of paraphrasing input."
                             ),
                         },
                         {"role": "user", "content": text},
@@ -281,7 +296,10 @@ class PhiAnalyzer:
             parsed = _safe_parse_json(content)
             return {
                 "sentiment": parsed.get("sentiment", ""),
-                "opinion_mining": parsed.get("opinion_mining", []),
+                # Keep compatibility with older prompt variants that returned item_mentions.
+                "opinion_mining": _normalize_item_mentions(
+                    parsed.get("opinion_mining", parsed.get("item_mentions", []))
+                ),
                 "key_phrases": parsed.get("key_phrases", []),
             }
         except Exception:
@@ -374,6 +392,48 @@ def _format_list(value: Any) -> str:
     return str(value)
 
 
+def _normalize_item_mentions(opinion_mining: Any) -> List[Dict[str, Any]]:
+    normalized: List[Dict[str, Any]] = []
+    for item in opinion_mining or []:
+        if isinstance(item, dict):
+            raw_name = (
+                item.get("item")
+                or item.get("target")
+                or item.get("aspect")
+                or item.get("text")
+                or ""
+            )
+            name = str(raw_name).strip()
+            raw_score = item.get("positivity_score", item.get("score"))
+            score = _coerce_positivity_score(raw_score)
+            if not name:
+                continue
+            normalized.append({"item": name, "positivity_score": score})
+            continue
+
+        name = str(item).strip()
+        if name:
+            normalized.append({"item": name, "positivity_score": None})
+    return normalized
+
+
+def _coerce_positivity_score(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        score = float(value)
+    except (TypeError, ValueError):
+        return None
+
+    # Support probability-style scores (0..1) by mapping to 0..100.
+    if 0 <= score <= 1:
+        score = score * 100
+    # Support normalized negative sentiment scores (-1..0) and convert to 0..100.
+    elif -1 <= score < 0:
+        score = (score + 1) * 50
+    return max(0, min(100, int(round(score))))
+
+
 def _format_azure_opinions(opinion_mining: Any) -> str:
     normalized = []
     for item in opinion_mining or []:
@@ -383,6 +443,20 @@ def _format_azure_opinions(opinion_mining: Any) -> str:
             normalized.append(f"{target}:{sentiment}" if target or sentiment else "")
         else:
             normalized.append(str(item))
+    return _format_list(normalized)
+
+
+def _format_language_model_mentions(opinion_mining: Any) -> str:
+    normalized = []
+    for item in _normalize_item_mentions(opinion_mining):
+        mention = item.get("item", "").strip()
+        if not mention:
+            continue
+        positivity_score = item.get("positivity_score")
+        if positivity_score is None:
+            normalized.append(mention)
+        else:
+            normalized.append(f"{mention} ({positivity_score}/100)")
     return _format_list(normalized)
 
 
@@ -468,7 +542,8 @@ def build_language_model_enrichment_values(
     return {
         "language_model_sentiment": [result.get("sentiment", "") for result in language_model_results],
         "language_model_opinion_mining": [
-            _format_list(result.get("opinion_mining", [])) for result in language_model_results
+            _format_language_model_mentions(result.get("opinion_mining", []))
+            for result in language_model_results
         ],
         "language_model_key_phrases": [
             _format_list(result.get("key_phrases", [])) for result in language_model_results
