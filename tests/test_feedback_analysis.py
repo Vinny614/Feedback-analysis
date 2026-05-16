@@ -1,9 +1,12 @@
+import json
 import unittest
 from unittest.mock import patch
 
 import pandas as pd
+import requests
 
 from feedback_analysis import (
+    _post_with_retry,
     _build_service_headers,
     detect_feedback_column,
     enrich_feedback_dataframe,
@@ -19,6 +22,15 @@ class StubAnalyzer:
 
 
 class FeedbackAnalysisTests(unittest.TestCase):
+    @staticmethod
+    def _build_response(status_code, payload, headers=None):
+        response = requests.Response()
+        response.status_code = status_code
+        response._content = json.dumps(payload).encode("utf-8")
+        response.headers = headers or {}
+        response.url = "https://example.test"
+        return response
+
     def test_detect_feedback_column_prefers_named_column(self):
         df = pd.DataFrame({"ID": [1], "Feedback": ["Great service"]})
         self.assertEqual(detect_feedback_column(df), "Feedback")
@@ -111,6 +123,43 @@ class FeedbackAnalysisTests(unittest.TestCase):
         with patch("feedback_analysis._credential.get_token", side_effect=RuntimeError("no cred")):
             with self.assertRaisesRegex(ValueError, "Azure credentials are unavailable"):
                 _build_service_headers("", "api-key")
+
+    def test_post_with_retry_retries_429_then_succeeds(self):
+        first = self._build_response(429, {"error": {"message": "rate limit"}}, {"Retry-After": "0"})
+        second = self._build_response(200, {"ok": True})
+
+        with (
+            patch("feedback_analysis.requests.post", side_effect=[first, second]) as post_mock,
+            patch("feedback_analysis.time.sleep") as sleep_mock,
+        ):
+            response = _post_with_retry(
+                "https://example.test",
+                headers={"api-key": "test"},
+                json={"sample": "payload"},
+                timeout=30,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(post_mock.call_count, 2)
+        sleep_mock.assert_called_once_with(0)
+
+    def test_post_with_retry_raises_after_max_retries(self):
+        throttled = self._build_response(429, {"error": {"message": "rate limit"}}, {"Retry-After": "0"})
+
+        with (
+            patch("feedback_analysis.requests.post", return_value=throttled) as post_mock,
+            patch("feedback_analysis.time.sleep") as sleep_mock,
+        ):
+            with self.assertRaises(requests.HTTPError):
+                _post_with_retry(
+                    "https://example.test",
+                    headers={"api-key": "test"},
+                    json={"sample": "payload"},
+                    timeout=30,
+                )
+
+        self.assertEqual(post_mock.call_count, 5)
+        self.assertEqual(sleep_mock.call_count, 4)
 
 
 if __name__ == "__main__":

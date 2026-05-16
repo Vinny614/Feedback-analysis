@@ -1,5 +1,6 @@
 import json
 import re
+import time
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
@@ -26,6 +27,10 @@ NEGATIVE_HINTS = {"bad", "poor", "slow", "issue", "problem", "hate", "delay"}
 MAX_KEY_PHRASES = 5
 MAX_OPINION_TOKENS = 3
 MIN_SENTIMENT_TOTAL = 1
+MAX_RETRY_ATTEMPTS = 4
+BASE_RETRY_SECONDS = 1
+MAX_RETRY_SECONDS = 30
+RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
 
 @dataclass
@@ -97,7 +102,7 @@ class AzureLanguageAnalyzer:
         )
         documents = [{"id": str(i + 1), "language": "en", "text": text} for i, text in enumerate(texts)]
 
-        sentiment_response = requests.post(
+        sentiment_response = _post_with_retry(
             f"{self.endpoint.rstrip('/')}/language/:analyze-text?api-version={self.api_version}",
             headers=headers,
             json={
@@ -107,9 +112,8 @@ class AzureLanguageAnalyzer:
             },
             timeout=30,
         )
-        sentiment_response.raise_for_status()
 
-        keyphrase_response = requests.post(
+        keyphrase_response = _post_with_retry(
             f"{self.endpoint.rstrip('/')}/language/:analyze-text?api-version={self.api_version}",
             headers=headers,
             json={
@@ -119,7 +123,6 @@ class AzureLanguageAnalyzer:
             },
             timeout=30,
         )
-        keyphrase_response.raise_for_status()
 
         sentiments = {
             int(item["id"]) - 1: item
@@ -173,7 +176,7 @@ class PhiAnalyzer:
         headers = _build_service_headers(api_key=self.api_key, api_key_header="api-key")
         results = []
         for text in texts:
-            response = requests.post(
+            response = _post_with_retry(
                 f"{self.endpoint.rstrip('/')}/openai/deployments/{self.deployment}/chat/completions?api-version={self.api_version}",
                 headers=headers,
                 json={
@@ -192,7 +195,6 @@ class PhiAnalyzer:
                 },
                 timeout=30,
             )
-            response.raise_for_status()
             content = (
                 response.json()
                 .get("choices", [{}])[0]
@@ -235,6 +237,42 @@ def _build_service_headers(api_key: str, api_key_header: str) -> Dict[str, str]:
         ) from exc
 
     return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+
+def _parse_retry_after_seconds(response: requests.Response) -> int | None:
+    value = (response.headers or {}).get("Retry-After", "").strip()
+    if not value:
+        return None
+    try:
+        seconds = int(value)
+    except ValueError:
+        return None
+    return max(seconds, 0)
+
+
+def _post_with_retry(url: str, headers: Dict[str, str], json: Dict[str, Any], timeout: int) -> requests.Response:
+    last_response = None
+    for attempt in range(MAX_RETRY_ATTEMPTS + 1):
+        response = requests.post(url, headers=headers, json=json, timeout=timeout)
+        last_response = response
+
+        if response.status_code not in RETRYABLE_STATUS_CODES:
+            response.raise_for_status()
+            return response
+
+        if attempt >= MAX_RETRY_ATTEMPTS:
+            response.raise_for_status()
+            return response
+
+        retry_after = _parse_retry_after_seconds(response)
+        if retry_after is None:
+            retry_after = min(BASE_RETRY_SECONDS * (2**attempt), MAX_RETRY_SECONDS)
+        time.sleep(retry_after)
+
+    if last_response is None:
+        raise RuntimeError("HTTP request failed before receiving a response.")
+    last_response.raise_for_status()
+    return last_response
 
 
 def detect_feedback_column(df: pd.DataFrame) -> str:
