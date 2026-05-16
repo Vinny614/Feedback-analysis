@@ -100,9 +100,9 @@ jobs:
             }' terraform.tfvars
           )"
           RESOURCE_GROUP_NAME="${RESOURCE_GROUP_NAME:-feedback-analysis-rg}"
-          STATE_LIST_FILE="$(mktemp)"
-          STATE_LIST_ERROR_FILE="$(mktemp)"
-          AZ_GROUP_ERROR_FILE="$(mktemp)"
+          STATE_LIST_FILE="$(mktemp "${TMPDIR:-/tmp}/state_list.XXXXXX")"
+          STATE_LIST_ERROR_FILE="$(mktemp "${TMPDIR:-/tmp}/state_list_error.XXXXXX")"
+          AZ_GROUP_ERROR_FILE="$(mktemp "${TMPDIR:-/tmp}/az_group_error.XXXXXX")"
           trap 'rm -f "${STATE_LIST_FILE}" "${STATE_LIST_ERROR_FILE}" "${AZ_GROUP_ERROR_FILE}"' EXIT
 
           if RESOURCE_GROUP_ID="$(az group show --name "${RESOURCE_GROUP_NAME}" --query id -o tsv 2>"${AZ_GROUP_ERROR_FILE}")"; then
@@ -132,7 +132,19 @@ jobs:
       - name: Refresh Terraform state
         run: |
           if find . -maxdepth 1 -name 'terraform.tfstate' -print -quit | grep -q .; then
-            terraform apply -refresh-only -input=false -auto-approve
+            STATE_LIST_FILE="$(mktemp "${TMPDIR:-/tmp}/state_list.XXXXXX")"
+            STATE_LIST_ERROR_FILE="$(mktemp "${TMPDIR:-/tmp}/state_list_error.XXXXXX")"
+            trap 'rm -f "${STATE_LIST_FILE}" "${STATE_LIST_ERROR_FILE}"' EXIT
+
+            if ! terraform state list >"${STATE_LIST_FILE}" 2>"${STATE_LIST_ERROR_FILE}"; then
+              echo "Unable to read Terraform state before refresh check. Error output:"
+              cat "${STATE_LIST_ERROR_FILE}"
+              exit 1
+            fi
+
+            if [[ -s "${STATE_LIST_FILE}" ]]; then
+              terraform apply -refresh-only -input=false -auto-approve
+            fi
           fi
 
       - name: Terraform apply
