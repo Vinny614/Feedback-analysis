@@ -9,6 +9,7 @@ from feedback_analysis import (
     MAX_RETRY_ATTEMPTS,
     _post_with_retry,
     _build_service_headers,
+    AzureLanguageAnalyzer,
     PhiAnalyzer,
     detect_feedback_column,
     enrich_feedback_dataframe,
@@ -187,6 +188,97 @@ class FeedbackAnalysisTests(unittest.TestCase):
 
         self.assertEqual(result, [expected[text] for text in texts])
         self.assertEqual(analyze_one_mock.call_count, len(texts))
+
+    def test_azure_analyzer_batches_requests_for_large_input(self):
+        analyzer = AzureLanguageAnalyzer(
+            endpoint="https://example.test", api_version="2023-04-01", api_key="test-key"
+        )
+        texts = [f"Feedback {i}" for i in range(30)]
+
+        def _sentiment_response(count):
+            return self._build_response(200, {
+                "results": {
+                    "documents": [
+                        {
+                            "id": str(i + 1),
+                            "sentiment": "positive",
+                            "confidenceScores": {"positive": 1.0, "neutral": 0.0, "negative": 0.0},
+                            "sentences": [],
+                        }
+                        for i in range(count)
+                    ]
+                }
+            })
+
+        def _keyphrase_response(count):
+            return self._build_response(200, {
+                "results": {
+                    "documents": [
+                        {"id": str(i + 1), "keyPhrases": []}
+                        for i in range(count)
+                    ]
+                }
+            })
+
+        # 30 texts → 2 batches (25 + 5) → 4 POST calls total
+        side_effects = [
+            _sentiment_response(25),
+            _keyphrase_response(25),
+            _sentiment_response(5),
+            _keyphrase_response(5),
+        ]
+
+        with patch("feedback_analysis._post_with_retry", side_effect=side_effects) as post_mock:
+            results = analyzer.analyze(texts)
+
+        self.assertEqual(len(results), 30)
+        self.assertEqual(post_mock.call_count, 4)
+        self.assertEqual(results[0]["sentiment"], "positive")
+        self.assertEqual(results[29]["sentiment"], "positive")
+
+    def test_azure_analyzer_returns_placeholders_for_failed_batch(self):
+        analyzer = AzureLanguageAnalyzer(
+            endpoint="https://example.test", api_version="2023-04-01", api_key="test-key"
+        )
+        texts = ["Feedback A", "Feedback B", "Feedback C"]
+
+        with patch(
+            "feedback_analysis._post_with_retry",
+            side_effect=requests.HTTPError("service unavailable"),
+        ):
+            results = analyzer.analyze(texts)
+
+        self.assertEqual(len(results), 3)
+        for result in results:
+            self.assertEqual(result["sentiment"], "")
+            self.assertEqual(result["opinion_mining"], [])
+            self.assertIsNone(result["confidence_positive"])
+
+    def test_phi_analyzer_returns_placeholder_for_failed_row(self):
+        analyzer = PhiAnalyzer(
+            endpoint="https://example.test", deployment="phi", api_key="test-key"
+        )
+        texts = ["Good service", "Bad row", "OK service"]
+
+        good_response = self._build_response(200, {
+            "choices": [{"message": {"content": json.dumps(
+                {"sentiment": "positive", "opinion_mining": [], "key_phrases": []}
+            )}}]
+        })
+
+        def side_effect(url, headers, json, timeout):
+            if json["messages"][1]["content"] == "Bad row":
+                raise requests.HTTPError("service error")
+            return good_response
+
+        with patch("feedback_analysis._post_with_retry", side_effect=side_effect):
+            results = analyzer.analyze(texts)
+
+        self.assertEqual(len(results), 3)
+        self.assertEqual(results[0]["sentiment"], "positive")
+        self.assertEqual(results[1]["sentiment"], "")
+        self.assertEqual(results[1]["opinion_mining"], [])
+        self.assertEqual(results[2]["sentiment"], "positive")
 
 
 if __name__ == "__main__":

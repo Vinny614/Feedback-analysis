@@ -89,6 +89,13 @@ def index():
             if input_df.empty:
                 raise ValueError("Uploaded file is empty.")
 
+            max_rows = int(os.getenv("MAX_UPLOAD_ROWS", "500"))
+            if len(input_df) > max_rows:
+                raise ValueError(
+                    f"File contains {len(input_df):,} rows. "
+                    f"Please upload a file with at most {max_rows:,} rows at a time."
+                )
+
             feedback_column = detect_feedback_column(input_df)
             use_mock = os.getenv("DEMO_USE_MOCK_ANALYZERS", "false").lower() == "true"
             if use_mock:
