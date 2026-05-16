@@ -251,28 +251,23 @@ def _parse_retry_after_seconds(response: requests.Response) -> int | None:
 
 
 def _post_with_retry(url: str, headers: Dict[str, str], json: Dict[str, Any], timeout: int) -> requests.Response:
-    last_response = None
-    for attempt in range(MAX_RETRY_ATTEMPTS + 1):
+    for retry_index in range(MAX_RETRY_ATTEMPTS + 1):
         response = requests.post(url, headers=headers, json=json, timeout=timeout)
-        last_response = response
 
         if response.status_code not in RETRYABLE_STATUS_CODES:
             response.raise_for_status()
             return response
 
-        if attempt >= MAX_RETRY_ATTEMPTS:
+        if retry_index >= MAX_RETRY_ATTEMPTS:
             response.raise_for_status()
             return response
 
         retry_after = _parse_retry_after_seconds(response)
         if retry_after is None:
-            retry_after = min(BASE_RETRY_SECONDS * (2**attempt), MAX_RETRY_SECONDS)
+            retry_after = min(BASE_RETRY_SECONDS * (2**retry_index), MAX_RETRY_SECONDS)
         time.sleep(retry_after)
 
-    if last_response is None:
-        raise RuntimeError("HTTP request failed before receiving a response.")
-    last_response.raise_for_status()
-    return last_response
+    raise RuntimeError("Retry loop exited unexpectedly.")
 
 
 def detect_feedback_column(df: pd.DataFrame) -> str:

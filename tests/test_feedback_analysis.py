@@ -6,6 +6,7 @@ import pandas as pd
 import requests
 
 from feedback_analysis import (
+    MAX_RETRY_ATTEMPTS,
     _post_with_retry,
     _build_service_headers,
     detect_feedback_column,
@@ -158,8 +159,8 @@ class FeedbackAnalysisTests(unittest.TestCase):
                     timeout=30,
                 )
 
-        self.assertEqual(post_mock.call_count, 5)
-        self.assertEqual(sleep_mock.call_count, 4)
+        self.assertEqual(post_mock.call_count, MAX_RETRY_ATTEMPTS + 1)
+        self.assertEqual(sleep_mock.call_count, MAX_RETRY_ATTEMPTS)
 
 
 if __name__ == "__main__":
