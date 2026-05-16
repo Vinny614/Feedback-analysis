@@ -28,6 +28,9 @@
       .hint {
         color: #555;
       }
+      .progress {
+        margin-top: 1rem;
+      }
     </style>
   </head>
   <body>
@@ -44,13 +47,75 @@
     <div class="error">{{ error }}</div>
     {% endif %}
 
+    <div id="job-status" class="progress"></div>
+
     {% if table_html %}
-    <p><strong>Detected feedback column:</strong> {{ feedback_column }}</p>
-    <p><strong>Language model used:</strong> {{ language_model_used }}</p>
-    <p>
+    <p><strong>Detected feedback column:</strong> <span id="feedback-column">{{ feedback_column }}</span></p>
+    <p><strong>Language model used:</strong> <span id="language-model-used">{{ language_model_used }}</span></p>
+    <p id="download-link">
+      {% if download_url %}
       <a href="{{ download_url }}" download="feedback_analysis_output.xlsx">Download enriched Excel</a>
+      {% endif %}
     </p>
-    {{ table_html|safe }}
+    <div id="results-table">{{ table_html|safe }}</div>
+    {% endif %}
+
+    {% if status_url %}
+    <script>
+      (function () {
+        const statusUrl = {{ status_url|tojson }};
+        const statusEl = document.getElementById("job-status");
+        const tableEl = document.getElementById("results-table");
+        const modelEl = document.getElementById("language-model-used");
+        const downloadEl = document.getElementById("download-link");
+
+        function setStatus(message, isError) {
+          statusEl.textContent = message;
+          statusEl.className = isError ? "error progress" : "progress";
+        }
+
+        async function poll() {
+          try {
+            const response = await fetch(statusUrl, { cache: "no-store" });
+            if (!response.ok) {
+              setStatus("Unable to fetch analysis status.", true);
+              return;
+            }
+
+            const data = await response.json();
+            if (modelEl && data.language_model_used) {
+              modelEl.textContent = data.language_model_used;
+            }
+            if (tableEl && data.table_html) {
+              tableEl.innerHTML = data.table_html;
+            }
+
+            if (data.download_url) {
+              downloadEl.innerHTML =
+                '<a href="' + data.download_url + '" download="feedback_analysis_output.xlsx">Download enriched Excel</a>';
+            }
+
+            if (data.status === "failed") {
+              setStatus(data.error || "Analysis failed.", true);
+              return;
+            }
+
+            if (data.status === "completed") {
+              setStatus("Analysis complete.");
+              return;
+            }
+
+            setStatus("Processing rows: " + data.processed_rows + " / " + data.total_rows + "...");
+            setTimeout(poll, 1500);
+          } catch (error) {
+            setStatus("Unable to fetch analysis status.", true);
+          }
+        }
+
+        setStatus("Analysis job queued...");
+        setTimeout(poll, 300);
+      })();
+    </script>
     {% endif %}
   </body>
 </html>

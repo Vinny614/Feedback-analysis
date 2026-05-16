@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -35,8 +36,23 @@ MAX_RETRY_ATTEMPTS = 4
 BASE_RETRY_SECONDS = 1
 MAX_RETRY_SECONDS = 30
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
-MAX_CONCURRENT_ANALYSIS_REQUESTS = 8
+MAX_CONCURRENT_ANALYSIS_REQUESTS = max(
+    1, int(os.getenv("MAX_CONCURRENT_ANALYSIS_REQUESTS", "4"))
+)
 _AZURE_MAX_BATCH_SIZE = 25
+_DEFAULT_ANALYSIS_CHUNK_SIZE = 25
+
+ENRICHMENT_COLUMNS = [
+    "azure_sentiment",
+    "azure_opinion_mining",
+    "azure_key_phrases",
+    "azure_confidence_positive",
+    "azure_confidence_neutral",
+    "azure_confidence_negative",
+    "language_model_sentiment",
+    "language_model_opinion_mining",
+    "language_model_key_phrases",
+]
 
 _EMPTY_AZURE_ROW: Dict[str, Any] = {
     "sentiment": "",
@@ -358,29 +374,63 @@ def enrich_feedback_dataframe(
     enriched = df.copy()
     texts = enriched[feedback_column].fillna("").astype(str).tolist()
 
+    enrichment_values = _build_enrichment_values(texts, len(enriched), azure_analyzer, phi_analyzer)
+
+    for column_name, values in enrichment_values.items():
+        enriched[column_name] = values
+
+    return enriched
+
+
+def enrich_feedback_dataframe_in_chunks(
+    df: pd.DataFrame,
+    feedback_column: str,
+    azure_analyzer: Any,
+    phi_analyzer: Any,
+    chunk_size: int = _DEFAULT_ANALYSIS_CHUNK_SIZE,
+) -> pd.DataFrame:
+    enriched = df.copy()
+    for column_name in ENRICHMENT_COLUMNS:
+        enriched[column_name] = ""
+
+    safe_chunk_size = max(1, int(chunk_size))
+    total_rows = len(enriched)
+    for chunk_start in range(0, total_rows, safe_chunk_size):
+        chunk_end = min(chunk_start + safe_chunk_size, total_rows)
+        chunk = enriched.iloc[chunk_start:chunk_end].copy()
+        chunk_texts = chunk[feedback_column].fillna("").astype(str).tolist()
+        enrichment_values = _build_enrichment_values(
+            chunk_texts, len(chunk), azure_analyzer, phi_analyzer
+        )
+        for column_name, values in enrichment_values.items():
+            enriched.loc[chunk.index, column_name] = values
+
+    return enriched
+
+
+def _build_enrichment_values(
+    texts: List[str], expected_rows: int, azure_analyzer: Any, phi_analyzer: Any
+) -> Dict[str, List[Any]]:
     azure_results = azure_analyzer.analyze(texts)
     language_model_results = phi_analyzer.analyze(texts)
 
-    if len(azure_results) != len(enriched) or len(language_model_results) != len(enriched):
+    if len(azure_results) != expected_rows or len(language_model_results) != expected_rows:
         raise ValueError("Analyzer output size does not match the number of feedback rows.")
 
-    enriched["azure_sentiment"] = [result.get("sentiment", "") for result in azure_results]
-    enriched["azure_opinion_mining"] = [
-        _format_azure_opinions(result.get("opinion_mining", [])) for result in azure_results
-    ]
-    enriched["azure_key_phrases"] = [_format_list(result.get("key_phrases", [])) for result in azure_results]
-    enriched["azure_confidence_positive"] = [result.get("confidence_positive", "") for result in azure_results]
-    enriched["azure_confidence_neutral"] = [result.get("confidence_neutral", "") for result in azure_results]
-    enriched["azure_confidence_negative"] = [result.get("confidence_negative", "") for result in azure_results]
-
-    enriched["language_model_sentiment"] = [
-        result.get("sentiment", "") for result in language_model_results
-    ]
-    enriched["language_model_opinion_mining"] = [
-        _format_list(result.get("opinion_mining", [])) for result in language_model_results
-    ]
-    enriched["language_model_key_phrases"] = [
-        _format_list(result.get("key_phrases", [])) for result in language_model_results
-    ]
-
-    return enriched
+    return {
+        "azure_sentiment": [result.get("sentiment", "") for result in azure_results],
+        "azure_opinion_mining": [
+            _format_azure_opinions(result.get("opinion_mining", [])) for result in azure_results
+        ],
+        "azure_key_phrases": [_format_list(result.get("key_phrases", [])) for result in azure_results],
+        "azure_confidence_positive": [result.get("confidence_positive", "") for result in azure_results],
+        "azure_confidence_neutral": [result.get("confidence_neutral", "") for result in azure_results],
+        "azure_confidence_negative": [result.get("confidence_negative", "") for result in azure_results],
+        "language_model_sentiment": [result.get("sentiment", "") for result in language_model_results],
+        "language_model_opinion_mining": [
+            _format_list(result.get("opinion_mining", [])) for result in language_model_results
+        ],
+        "language_model_key_phrases": [
+            _format_list(result.get("key_phrases", [])) for result in language_model_results
+        ],
+    }
