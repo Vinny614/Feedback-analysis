@@ -236,10 +236,9 @@ def index():
 
             max_rows = _read_positive_int_env("MAX_UPLOAD_ROWS", 200)
             if len(input_df) > max_rows:
-                row_label = "row" if max_rows == 1 else "rows"
                 raise ValueError(
                     f"File contains {len(input_df):,} rows. "
-                    f"Please upload a file with at most {max_rows:,} {row_label} at a time."
+                    f"Please upload a file with at most {max_rows:,} {'row' if max_rows == 1 else 'rows'} at a time."
                 )
 
             feedback_column = detect_feedback_column(input_df)
@@ -287,7 +286,9 @@ def analysis_job_status(job_id: str):
             .astype(str)
             .values.tolist(),
         }
-    return jsonify(snapshot)
+    response = jsonify(snapshot)
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 if __name__ == "__main__":
