@@ -53,6 +53,7 @@ Optional processing controls:
 - `MAX_UPLOAD_ROWS` (defaults to `200`)
 - `ANALYSIS_CHUNK_SIZE` (defaults to `10`)
 - `MAX_CONCURRENT_ANALYSIS_REQUESTS` (defaults to `4`)
+- `MAX_BACKGROUND_JOBS` (defaults to `2`)
 
 For **Azure Web App deployments provisioned by Terraform**, the required endpoints and
 deployment name are set automatically in App Service application settings, and Terraform

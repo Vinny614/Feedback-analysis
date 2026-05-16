@@ -24,7 +24,24 @@ app = Flask(__name__)
 logger = logging.getLogger(__name__)
 _jobs_lock = threading.Lock()
 _analysis_jobs: Dict[str, Dict[str, Any]] = {}
-_job_executor = ThreadPoolExecutor(max_workers=2)
+
+
+def _read_positive_int_env(name: str, default: int) -> int:
+    value = os.getenv(name, str(default)).strip()
+    try:
+        parsed = int(value)
+    except ValueError:
+        logger.warning("Invalid %s value '%s'; falling back to %d.", name, value, default)
+        return default
+    if parsed < 1:
+        logger.warning("Invalid %s value '%s'; falling back to %d.", name, value, default)
+        return default
+    return parsed
+
+
+_job_executor = ThreadPoolExecutor(
+    max_workers=_read_positive_int_env("MAX_BACKGROUND_JOBS", 2)
+)
 
 
 def _resolve_language_model_deployment_name() -> str:
@@ -129,7 +146,7 @@ def _enqueue_analysis_job(input_df: pd.DataFrame, feedback_column: str, use_mock
 def _process_analysis_job(job_id: str, feedback_column: str, use_mock: bool) -> None:
     try:
         azure_analyzer, phi_analyzer, language_model_used = _create_analyzers(use_mock)
-        chunk_size = max(1, int(os.getenv("ANALYSIS_CHUNK_SIZE", "10")))
+        chunk_size = _read_positive_int_env("ANALYSIS_CHUNK_SIZE", 10)
 
         with _jobs_lock:
             job = _analysis_jobs.get(job_id)
@@ -217,11 +234,12 @@ def index():
             if input_df.empty:
                 raise ValueError("Uploaded file is empty.")
 
-            max_rows = int(os.getenv("MAX_UPLOAD_ROWS", "200"))
+            max_rows = _read_positive_int_env("MAX_UPLOAD_ROWS", 200)
             if len(input_df) > max_rows:
+                row_label = "row" if max_rows == 1 else "rows"
                 raise ValueError(
                     f"File contains {len(input_df):,} rows. "
-                    f"Please upload a file with at most {max_rows:,} rows at a time."
+                    f"Please upload a file with at most {max_rows:,} {row_label} at a time."
                 )
 
             feedback_column = detect_feedback_column(input_df)
@@ -263,7 +281,11 @@ def analysis_job_status(job_id: str):
             "language_model_used": job["language_model_used"],
             "error": job["error"],
             "download_url": job["download_url"],
-            "table_html": job["output_df"].to_html(index=False, classes="result-table"),
+            "table_columns": list(job["output_df"].columns),
+            "table_rows": job["output_df"]
+            .where(job["output_df"].notna(), "")
+            .astype(str)
+            .values.tolist(),
         }
     return jsonify(snapshot)
 

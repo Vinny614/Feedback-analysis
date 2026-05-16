@@ -59,7 +59,7 @@ class AppTests(unittest.TestCase):
         self.assertEqual(payload["processed_rows"], 2)
         self.assertEqual(payload["total_rows"], 2)
         self.assertTrue(payload["download_url"])
-        self.assertIn("azure_sentiment", payload["table_html"])
+        self.assertIn("azure_sentiment", payload["table_columns"])
 
     def test_upload_rejects_files_above_max_rows(self):
         os.environ["MAX_UPLOAD_ROWS"] = "1"
@@ -73,7 +73,7 @@ class AppTests(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("at most 1 rows", response.get_data(as_text=True))
+        self.assertIn("at most 1 row", response.get_data(as_text=True))
 
 
 if __name__ == "__main__":

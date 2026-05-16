@@ -69,6 +69,39 @@
         const modelEl = document.getElementById("language-model-used");
         const downloadEl = document.getElementById("download-link");
 
+        function renderTable(columns, rows) {
+          if (!tableEl || !Array.isArray(columns) || !Array.isArray(rows)) {
+            return;
+          }
+          tableEl.textContent = "";
+
+          const table = document.createElement("table");
+          table.className = "result-table";
+
+          const thead = document.createElement("thead");
+          const headRow = document.createElement("tr");
+          columns.forEach((column) => {
+            const th = document.createElement("th");
+            th.textContent = column;
+            headRow.appendChild(th);
+          });
+          thead.appendChild(headRow);
+          table.appendChild(thead);
+
+          const tbody = document.createElement("tbody");
+          rows.forEach((row) => {
+            const tr = document.createElement("tr");
+            row.forEach((value) => {
+              const td = document.createElement("td");
+              td.textContent = value;
+              tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+          });
+          table.appendChild(tbody);
+          tableEl.appendChild(table);
+        }
+
         function setStatus(message, isError) {
           statusEl.textContent = message;
           statusEl.className = isError ? "error progress" : "progress";
@@ -86,13 +119,15 @@
             if (modelEl && data.language_model_used) {
               modelEl.textContent = data.language_model_used;
             }
-            if (tableEl && data.table_html) {
-              tableEl.innerHTML = data.table_html;
-            }
+            renderTable(data.table_columns, data.table_rows);
 
             if (data.download_url) {
-              downloadEl.innerHTML =
-                '<a href="' + data.download_url + '" download="feedback_analysis_output.xlsx">Download enriched Excel</a>';
+              downloadEl.textContent = "";
+              const link = document.createElement("a");
+              link.href = data.download_url;
+              link.download = "feedback_analysis_output.xlsx";
+              link.textContent = "Download enriched Excel";
+              downloadEl.appendChild(link);
             }
 
             if (data.status === "failed") {

@@ -36,8 +36,21 @@ MAX_RETRY_ATTEMPTS = 4
 BASE_RETRY_SECONDS = 1
 MAX_RETRY_SECONDS = 30
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
-MAX_CONCURRENT_ANALYSIS_REQUESTS = max(
-    1, int(os.getenv("MAX_CONCURRENT_ANALYSIS_REQUESTS", "4"))
+def _read_positive_int_env(name: str, default: int) -> int:
+    value = os.getenv(name, str(default)).strip()
+    try:
+        parsed = int(value)
+    except ValueError:
+        _logger.warning("Invalid %s value '%s'; falling back to %d.", name, value, default)
+        return default
+    if parsed < 1:
+        _logger.warning("Invalid %s value '%s'; falling back to %d.", name, value, default)
+        return default
+    return parsed
+
+
+MAX_CONCURRENT_ANALYSIS_REQUESTS = _read_positive_int_env(
+    "MAX_CONCURRENT_ANALYSIS_REQUESTS", 4
 )
 _AZURE_MAX_BATCH_SIZE = 25
 _DEFAULT_ANALYSIS_CHUNK_SIZE = 25
