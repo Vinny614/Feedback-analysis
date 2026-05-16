@@ -9,6 +9,10 @@ import pandas as pd
 
 import app as feedback_app
 
+FEEDBACK_TEXT_INDEX = 0
+AZURE_SENTIMENT_INDEX = 1
+LANGUAGE_MODEL_SENTIMENT_INDEX = 7
+
 
 class AppTests(unittest.TestCase):
     def setUp(self):
@@ -162,9 +166,15 @@ class AppTests(unittest.TestCase):
             interim_payload = interim_response.get_json()
             self.assertEqual(interim_payload["status"], "running")
             self.assertEqual(interim_payload["processed_rows"], 0)
-            self.assertEqual(interim_payload["table_rows"][0][0], "Great support")
-            self.assertEqual(interim_payload["table_rows"][0][1], "positive")
-            self.assertEqual(interim_payload["table_rows"][0][7], "")
+            self.assertEqual(
+                interim_payload["table_rows"][0][FEEDBACK_TEXT_INDEX], "Great support"
+            )
+            self.assertEqual(
+                interim_payload["table_rows"][0][AZURE_SENTIMENT_INDEX], "positive"
+            )
+            self.assertEqual(
+                interim_payload["table_rows"][0][LANGUAGE_MODEL_SENTIMENT_INDEX], ""
+            )
             self.assertIsNone(interim_payload["download_url"])
 
             allow_phi_completion.set()
@@ -180,7 +190,9 @@ class AppTests(unittest.TestCase):
             self.assertIsNotNone(final_payload)
             self.assertEqual(final_payload["status"], "completed")
             self.assertEqual(final_payload["processed_rows"], 2)
-            self.assertEqual(final_payload["table_rows"][0][7], "positive")
+            self.assertEqual(
+                final_payload["table_rows"][0][LANGUAGE_MODEL_SENTIMENT_INDEX], "positive"
+            )
             self.assertTrue(final_payload["download_url"])
 
 
