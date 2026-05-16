@@ -1,7 +1,9 @@
 import json
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from functools import partial
 from typing import Any, Dict, List
 
 import pandas as pd
@@ -31,6 +33,7 @@ MAX_RETRY_ATTEMPTS = 4
 BASE_RETRY_SECONDS = 1
 MAX_RETRY_SECONDS = 30
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+MAX_CONCURRENT_ANALYSIS_REQUESTS = 8
 
 
 @dataclass
@@ -173,43 +176,44 @@ class PhiAnalyzer:
                 "Phi model configuration is missing. Set AZURE_OPENAI_ENDPOINT and PHI_DEPLOYMENT_NAME."
             )
 
+        if not texts:
+            return []
+
         headers = _build_service_headers(api_key=self.api_key, api_key_header="api-key")
-        results = []
-        for text in texts:
-            response = _post_with_retry(
-                f"{self.endpoint.rstrip('/')}/openai/deployments/{self.deployment}/chat/completions?api-version={self.api_version}",
-                headers=headers,
-                json={
-                    "temperature": 0,
-                    "messages": [
-                        {
-                            "role": "system",
-                            "content": (
-                                "You are a feedback analyst. Return JSON with keys sentiment (positive|neutral|negative|mixed), "
-                                "opinion_mining (array of short opinions), and key_phrases (array)."
-                            ),
-                        },
-                        {"role": "user", "content": text},
-                    ],
-                    "response_format": {"type": "json_object"},
-                },
-                timeout=30,
-            )
-            content = (
-                response.json()
-                .get("choices", [{}])[0]
-                .get("message", {})
-                .get("content", "{}")
-            )
-            parsed = _safe_parse_json(content)
-            results.append(
-                {
-                    "sentiment": parsed.get("sentiment", ""),
-                    "opinion_mining": parsed.get("opinion_mining", []),
-                    "key_phrases": parsed.get("key_phrases", []),
-                }
-            )
-        return results
+        max_workers = min(MAX_CONCURRENT_ANALYSIS_REQUESTS, len(texts))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            return list(executor.map(partial(self._analyze_one, headers=headers), texts))
+
+    def _analyze_one(self, text: str, headers: Dict[str, str]) -> Dict[str, Any]:
+        response = _post_with_retry(
+            f"{self.endpoint.rstrip('/')}/openai/deployments/{self.deployment}/chat/completions?api-version={self.api_version}",
+            headers=headers,
+            json={
+                "temperature": 0,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a feedback analyst. Return JSON with keys sentiment (positive|neutral|negative|mixed), "
+                            "opinion_mining (array of short opinions), and key_phrases (array)."
+                        ),
+                    },
+                    {"role": "user", "content": text},
+                ],
+                "response_format": {"type": "json_object"},
+            },
+            timeout=30,
+        )
+        response_payload = response.json()
+        choice = response_payload.get("choices", [{}])[0]
+        message = choice.get("message", {})
+        content = message.get("content", "{}")
+        parsed = _safe_parse_json(content)
+        return {
+            "sentiment": parsed.get("sentiment", ""),
+            "opinion_mining": parsed.get("opinion_mining", []),
+            "key_phrases": parsed.get("key_phrases", []),
+        }
 
 
 def _safe_parse_json(value: str) -> Dict[str, Any]:

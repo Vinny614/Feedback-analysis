@@ -9,6 +9,7 @@ from feedback_analysis import (
     MAX_RETRY_ATTEMPTS,
     _post_with_retry,
     _build_service_headers,
+    PhiAnalyzer,
     detect_feedback_column,
     enrich_feedback_dataframe,
 )
@@ -161,6 +162,31 @@ class FeedbackAnalysisTests(unittest.TestCase):
 
         self.assertEqual(post_mock.call_count, MAX_RETRY_ATTEMPTS + 1)
         self.assertEqual(sleep_mock.call_count, MAX_RETRY_ATTEMPTS)
+
+    def test_phi_analyzer_returns_empty_for_no_texts(self):
+        analyzer = PhiAnalyzer(endpoint="https://example.test", deployment="phi", api_key="test-key")
+
+        with patch("feedback_analysis._post_with_retry") as post_mock:
+            self.assertEqual(analyzer.analyze([]), [])
+
+        post_mock.assert_not_called()
+
+    def test_phi_analyzer_analyzes_multiple_rows(self):
+        analyzer = PhiAnalyzer(endpoint="https://example.test", deployment="phi", api_key="test-key")
+        texts = ["Great support", "Needs improvement", "Fast response"]
+        expected = {
+            "Great support": {"sentiment": "positive", "opinion_mining": ["support"], "key_phrases": ["support"]},
+            "Needs improvement": {"sentiment": "negative", "opinion_mining": ["improvement"], "key_phrases": ["improvement"]},
+            "Fast response": {"sentiment": "positive", "opinion_mining": ["response"], "key_phrases": ["response"]},
+        }
+
+        with patch.object(
+            PhiAnalyzer, "_analyze_one", side_effect=lambda text, headers=None: expected[text]
+        ) as analyze_one_mock:
+            result = analyzer.analyze(texts)
+
+        self.assertEqual(result, [expected[text] for text in texts])
+        self.assertEqual(analyze_one_mock.call_count, len(texts))
 
 
 if __name__ == "__main__":
