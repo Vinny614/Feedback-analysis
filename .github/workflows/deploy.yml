@@ -129,6 +129,12 @@ jobs:
             terraform import -input=false azurerm_resource_group.this "${RESOURCE_GROUP_ID}"
           fi
 
+      - name: Refresh Terraform state
+        run: |
+          if find . -maxdepth 1 -name 'terraform.tfstate' -print -quit | grep -q .; then
+            terraform apply -refresh-only -input=false -auto-approve
+          fi
+
       - name: Terraform apply
         if: ${{ github.event.inputs.operation == 'deploy' }}
         run: |
@@ -153,7 +159,7 @@ jobs:
           terraform apply -input=false -auto-approve tfdestroyplan
 
       - name: Save Terraform state cache
-        if: success() && hashFiles('infra/terraform/terraform.tfstate') != ''
+        if: always() && hashFiles('infra/terraform/terraform.tfstate') != ''
         uses: actions/cache/save@v4
         with:
           path: |
