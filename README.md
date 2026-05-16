@@ -16,6 +16,7 @@ A minimal Flask demo for analyzing feedback from an uploaded Excel file.
   - opinion mining
   - key phrases
 - Renders the enriched table in the web UI
+- Processes uploaded files in a background job and shows progress while rows are analyzed
 - Lets you download the enriched file as Excel
 
 ## Authentication — Entra ID locally, app settings in Azure
@@ -46,6 +47,13 @@ Optional if you want to use service keys instead of Entra ID:
 Optional for local/demo verification without Azure credentials:
 
 - `DEMO_USE_MOCK_ANALYZERS=true`
+
+Optional processing controls:
+
+- `MAX_UPLOAD_ROWS` (defaults to `200`)
+- `ANALYSIS_CHUNK_SIZE` (defaults to `10`)
+- `MAX_CONCURRENT_ANALYSIS_REQUESTS` (defaults to `4`)
+- `MAX_BACKGROUND_JOBS` (defaults to `2`)
 
 For **Azure Web App deployments provisioned by Terraform**, the required endpoints and
 deployment name are set automatically in App Service application settings, and Terraform
@@ -168,7 +176,7 @@ az webapp up \
 The startup command is already configured in Terraform:
 
 ```
-gunicorn --bind=0.0.0.0:$PORT wsgi:application
+gunicorn --bind=0.0.0.0:$PORT --timeout 300 wsgi:application
 ```
 
 ## Run tests
