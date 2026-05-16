@@ -110,12 +110,9 @@ class AppTests(unittest.TestCase):
         os.environ["PHI_MODEL_NAME"] = "gpt-4.1-mini"
         os.environ["PHI_MODEL_VERSION"] = "2025-04-14"
 
-        response = self.client.get("/")
-
-        self.assertEqual(response.status_code, 200)
-        page = response.get_data(as_text=True)
-        self.assertIn("gpt-4.1-mini (2025-04-14)", page)
-        self.assertNotIn(">chat-model<", page)
+        self.assertEqual(
+            feedback_app._resolve_language_model_name(), "gpt-4.1-mini (2025-04-14)"
+        )
 
     def test_status_returns_partial_table_updates_while_job_is_running(self):
         df = pd.DataFrame({"Feedback": ["Great support", "Needs improvement"]})

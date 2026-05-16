@@ -28,6 +28,9 @@ app = Flask(__name__)
 logger = logging.getLogger(__name__)
 _jobs_lock = threading.Lock()
 _analysis_jobs: Dict[str, Dict[str, Any]] = {}
+SCORE_SUFFIX = "/100)"
+POSITIVE_MENTION_THRESHOLD = 60
+NEGATIVE_MENTION_THRESHOLD = 40
 
 
 def _read_positive_int_env(name: str, default: int) -> int:
@@ -69,15 +72,15 @@ def _resolve_language_model_name() -> str:
 
 
 def _split_semicolon_values(value: Any) -> list[str]:
-    return [item.strip() for item in str(value).split(";") if item and item.strip()]
+    return [item.strip() for item in str(value).split(";") if item.strip()]
 
 
 def _extract_mentions_with_scores(value: Any) -> list[tuple[str, int | None]]:
     mentions: list[tuple[str, int | None]] = []
     for chunk in _split_semicolon_values(value):
-        if chunk.endswith("/100)") and " (" in chunk:
+        if chunk.endswith(SCORE_SUFFIX) and " (" in chunk:
             prefix, score_part = chunk.rsplit(" (", 1)
-            score_text = score_part[:-5]
+            score_text = score_part[: -len(SCORE_SUFFIX)]
             try:
                 score = int(score_text)
             except ValueError:
@@ -121,9 +124,9 @@ def _build_overall_summary(output_df: pd.DataFrame) -> Dict[str, Any]:
             mention_key = mention.lower()
             if score is None:
                 continue
-            if score >= 60:
+            if score >= POSITIVE_MENTION_THRESHOLD:
                 positive_items[mention_key] += 1
-            elif score <= 40:
+            elif score <= NEGATIVE_MENTION_THRESHOLD:
                 negative_items[mention_key] += 1
 
     total_sentiments = sum(sentiment_counter.values())

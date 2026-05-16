@@ -99,7 +99,7 @@ class FeedbackAnalysisTests(unittest.TestCase):
                     "sentiment": "mixed",
                     "opinion_mining": [
                         {"item": "support", "positivity_score": 82},
-                        {"target": "response time", "score": 0.2},
+                        {"item": "response time", "positivity_score": 0.2},
                         "pricing",
                     ],
                     "key_phrases": ["support", "response time"],

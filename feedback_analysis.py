@@ -424,6 +424,7 @@ def _coerce_positivity_score(value: Any) -> int | None:
     except (TypeError, ValueError):
         return None
 
+    # Some models return sentiment on a -1..1 scale; convert to positivity 0..100.
     if -1 <= score <= 1:
         score = (score + 1) * 50
     return max(0, min(100, int(round(score))))
