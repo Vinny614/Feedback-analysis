@@ -102,7 +102,7 @@ jobs:
           RESOURCE_GROUP_NAME="${RESOURCE_GROUP_NAME:-feedback-analysis-rg}"
           STATE_LIST_FILE="$(mktemp "${TMPDIR:-/tmp}/state_list.XXXXXX")"
           STATE_LIST_ERROR_FILE="$(mktemp "${TMPDIR:-/tmp}/state_list_error.XXXXXX")"
-          AZ_GROUP_ERROR_FILE="$(mktemp)"
+          AZ_GROUP_ERROR_FILE="$(mktemp "${TMPDIR:-/tmp}/az_group_error.XXXXXX")"
           trap 'rm -f "${STATE_LIST_FILE}" "${STATE_LIST_ERROR_FILE}" "${AZ_GROUP_ERROR_FILE}"' EXIT
 
           if RESOURCE_GROUP_ID="$(az group show --name "${RESOURCE_GROUP_NAME}" --query id -o tsv 2>"${AZ_GROUP_ERROR_FILE}")"; then
@@ -135,8 +135,8 @@ jobs:
             exit 0
           fi
 
-          STATE_LIST_FILE="$(mktemp)"
-          STATE_LIST_ERROR_FILE="$(mktemp)"
+          STATE_LIST_FILE="$(mktemp "${TMPDIR:-/tmp}/state_list.XXXXXX")"
+          STATE_LIST_ERROR_FILE="$(mktemp "${TMPDIR:-/tmp}/state_list_error.XXXXXX")"
           trap 'rm -f "${STATE_LIST_FILE}" "${STATE_LIST_ERROR_FILE}"' EXIT
 
           if ! terraform state list >"${STATE_LIST_FILE}" 2>"${STATE_LIST_ERROR_FILE}"; then
