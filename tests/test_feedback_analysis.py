@@ -134,6 +134,20 @@ class FeedbackAnalysisTests(unittest.TestCase):
             "checkout (0/100); onboarding (50/100); support (100/100)",
         )
 
+    def test_build_language_model_enrichment_values_normalizes_zero_to_one_scores(self):
+        values = build_language_model_enrichment_values(
+            [
+                {
+                    "sentiment": "mixed",
+                    "opinion_mining": [{"item": "delivery", "positivity_score": 0.2}],
+                    "key_phrases": [],
+                }
+            ],
+            1,
+        )
+
+        self.assertEqual(values["language_model_opinion_mining"][0], "delivery (60/100)")
+
     def test_enrich_feedback_dataframe_raises_on_size_mismatch(self):
         df = pd.DataFrame({"Feedback": ["Great support", "Needs improvement"]})
         azure_stub = StubAnalyzer([{"sentiment": "positive"}])

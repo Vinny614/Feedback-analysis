@@ -425,7 +425,7 @@ def _coerce_positivity_score(value: Any) -> int | None:
         return None
 
     # Some models emit normalized sentiment in -1..1 rather than 0..100.
-    # Treat that range as normalized sentiment and convert to positivity 0..100.
+    # Convert -1 (most negative) .. +1 (most positive) to 0..100 via (score + 1) * 50.
     if -1 <= score <= 1:
         score = (score + 1) * 50
     return max(0, min(100, int(round(score))))

@@ -28,9 +28,10 @@ app = Flask(__name__)
 logger = logging.getLogger(__name__)
 _jobs_lock = threading.Lock()
 _analysis_jobs: Dict[str, Dict[str, Any]] = {}
-SCORE_SUFFIX = "/100)"
+SCORE_FORMAT_ENDING = "/100)"
 POSITIVE_MENTION_THRESHOLD = 60
 NEGATIVE_MENTION_THRESHOLD = 40
+MAX_ACTION_THEMES = 3
 
 
 def _read_positive_int_env(name: str, default: int) -> int:
@@ -78,9 +79,9 @@ def _split_semicolon_values(value: Any) -> list[str]:
 def _extract_mentions_with_scores(value: Any) -> list[tuple[str, int | None]]:
     mentions: list[tuple[str, int | None]] = []
     for chunk in _split_semicolon_values(value):
-        if chunk.endswith(SCORE_SUFFIX) and " (" in chunk:
+        if chunk.endswith(SCORE_FORMAT_ENDING) and " (" in chunk:
             prefix, score_part = chunk.rsplit(" (", 1)
-            score_text = score_part[: -len(SCORE_SUFFIX)]
+            score_text = score_part[: -len(SCORE_FORMAT_ENDING)]
             try:
                 score = int(score_text)
             except ValueError:
@@ -152,11 +153,11 @@ def _build_overall_summary(output_df: pd.DataFrame) -> Dict[str, Any]:
     recommended_actions: list[str] = []
     if negative_trends:
         recommended_actions.append(
-            f"Prioritize improvements on: {', '.join(negative_trends[:3])}."
+            f"Prioritize improvements on: {', '.join(negative_trends[:MAX_ACTION_THEMES])}."
         )
     if positive_trends:
         recommended_actions.append(
-            f"Preserve and scale strengths in: {', '.join(positive_trends[:3])}."
+            f"Preserve and scale strengths in: {', '.join(positive_trends[:MAX_ACTION_THEMES])}."
         )
     if not recommended_actions:
         recommended_actions.append(
