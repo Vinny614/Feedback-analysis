@@ -131,22 +131,20 @@ jobs:
 
       - name: Refresh Terraform state
         run: |
-          if ! find . -maxdepth 1 -name 'terraform.tfstate' -print -quit | grep -q .; then
-            exit 0
-          fi
+          if find . -maxdepth 1 -name 'terraform.tfstate' -print -quit | grep -q .; then
+            STATE_LIST_FILE="$(mktemp "${TMPDIR:-/tmp}/state_list.XXXXXX")"
+            STATE_LIST_ERROR_FILE="$(mktemp "${TMPDIR:-/tmp}/state_list_error.XXXXXX")"
+            trap 'rm -f "${STATE_LIST_FILE}" "${STATE_LIST_ERROR_FILE}"' EXIT
 
-          STATE_LIST_FILE="$(mktemp "${TMPDIR:-/tmp}/state_list.XXXXXX")"
-          STATE_LIST_ERROR_FILE="$(mktemp "${TMPDIR:-/tmp}/state_list_error.XXXXXX")"
-          trap 'rm -f "${STATE_LIST_FILE}" "${STATE_LIST_ERROR_FILE}"' EXIT
+            if ! terraform state list >"${STATE_LIST_FILE}" 2>"${STATE_LIST_ERROR_FILE}"; then
+              echo "Unable to read Terraform state before refresh check. Error output:"
+              cat "${STATE_LIST_ERROR_FILE}"
+              exit 1
+            fi
 
-          if ! terraform state list >"${STATE_LIST_FILE}" 2>"${STATE_LIST_ERROR_FILE}"; then
-            echo "Unable to read Terraform state before refresh check. Error output:"
-            cat "${STATE_LIST_ERROR_FILE}"
-            exit 1
-          fi
-
-          if [[ -s "${STATE_LIST_FILE}" ]]; then
-            terraform apply -refresh-only -input=false -auto-approve
+            if [[ -s "${STATE_LIST_FILE}" ]]; then
+              terraform apply -refresh-only -input=false -auto-approve
+            fi
           fi
 
       - name: Terraform apply
