@@ -19,6 +19,16 @@ app = Flask(__name__)
 logger = logging.getLogger(__name__)
 
 
+def _resolve_language_model_deployment_name() -> str:
+    return os.getenv("LANGUAGE_MODEL_DEPLOYMENT_NAME", "").strip() or os.getenv(
+        "PHI_DEPLOYMENT_NAME", ""
+    ).strip()
+
+
+def _resolve_language_model_name() -> str:
+    return _resolve_language_model_deployment_name() or "Not configured"
+
+
 def _format_request_exception(exc: requests.RequestException) -> str:
     response = getattr(exc, "response", None)
     if response is None:
@@ -60,7 +70,14 @@ def _build_download_link(df: pd.DataFrame) -> str:
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    context = {"table_html": None, "error": None, "download_url": None, "feedback_column": None}
+    language_model_name = _resolve_language_model_name()
+    context = {
+        "table_html": None,
+        "error": None,
+        "download_url": None,
+        "feedback_column": None,
+        "language_model_used": language_model_name,
+    }
     if request.method == "POST":
         uploaded_file = request.files.get("feedback_file")
         if not uploaded_file or uploaded_file.filename == "":
@@ -77,6 +94,7 @@ def index():
             if use_mock:
                 azure_analyzer = DemoHeuristicAnalyzer(mode="azure")
                 phi_analyzer = DemoHeuristicAnalyzer(mode="phi")
+                context["language_model_used"] = "Demo heuristic analyzer"
             else:
                 azure_analyzer = AzureLanguageAnalyzer(
                     endpoint=os.getenv("AZURE_LANGUAGE_ENDPOINT", ""),
@@ -85,10 +103,11 @@ def index():
                 )
                 phi_analyzer = PhiAnalyzer(
                     endpoint=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
-                    deployment=os.getenv("PHI_DEPLOYMENT_NAME", ""),
+                    deployment=_resolve_language_model_deployment_name(),
                     api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview"),
                     api_key=os.getenv("AZURE_OPENAI_KEY", ""),
                 )
+                context["language_model_used"] = _resolve_language_model_name()
 
             output_df = enrich_feedback_dataframe(
                 input_df, feedback_column, azure_analyzer, phi_analyzer
