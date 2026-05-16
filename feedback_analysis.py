@@ -69,6 +69,9 @@ ENRICHMENT_COLUMNS = [
     "language_model_key_phrases",
 ]
 
+AZURE_ENRICHMENT_COLUMNS = ENRICHMENT_COLUMNS[:6]
+LANGUAGE_MODEL_ENRICHMENT_COLUMNS = ENRICHMENT_COLUMNS[6:]
+
 _EMPTY_AZURE_ROW: Dict[str, Any] = {
     "sentiment": "",
     "opinion_mining": [],
@@ -433,6 +436,18 @@ def _build_enrichment_values(
         raise ValueError("Analyzer output size does not match the number of feedback rows.")
 
     return {
+        **build_azure_enrichment_values(azure_results, expected_rows),
+        **build_language_model_enrichment_values(language_model_results, expected_rows),
+    }
+
+
+def build_azure_enrichment_values(
+    azure_results: List[Dict[str, Any]], expected_rows: int
+) -> Dict[str, List[Any]]:
+    if len(azure_results) != expected_rows:
+        raise ValueError("Analyzer output size does not match the number of feedback rows.")
+
+    return {
         "azure_sentiment": [result.get("sentiment", "") for result in azure_results],
         "azure_opinion_mining": [
             _format_azure_opinions(result.get("opinion_mining", [])) for result in azure_results
@@ -441,6 +456,16 @@ def _build_enrichment_values(
         "azure_confidence_positive": [result.get("confidence_positive", "") for result in azure_results],
         "azure_confidence_neutral": [result.get("confidence_neutral", "") for result in azure_results],
         "azure_confidence_negative": [result.get("confidence_negative", "") for result in azure_results],
+    }
+
+
+def build_language_model_enrichment_values(
+    language_model_results: List[Dict[str, Any]], expected_rows: int
+) -> Dict[str, List[Any]]:
+    if len(language_model_results) != expected_rows:
+        raise ValueError("Analyzer output size does not match the number of feedback rows.")
+
+    return {
         "language_model_sentiment": [result.get("sentiment", "") for result in language_model_results],
         "language_model_opinion_mining": [
             _format_list(result.get("opinion_mining", [])) for result in language_model_results

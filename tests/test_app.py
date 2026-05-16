@@ -1,5 +1,7 @@
 import io
 import os
+import threading
+import time
 import unittest
 from unittest.mock import patch
 
@@ -94,6 +96,92 @@ class AppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         with feedback_app._jobs_lock:
             self.assertEqual(len(feedback_app._analysis_jobs), 1)
+
+    def test_status_returns_partial_table_updates_while_job_is_running(self):
+        df = pd.DataFrame({"Feedback": ["Great support", "Needs improvement"]})
+        file_obj = self._excel_bytes(df)
+        phi_started = threading.Event()
+        allow_phi_completion = threading.Event()
+
+        class AzureStub:
+            def analyze(self, texts):
+                return [
+                    {
+                        "sentiment": "positive",
+                        "opinion_mining": [{"target": "support", "sentiment": "positive"}],
+                        "key_phrases": ["great support"],
+                        "confidence_positive": 0.95,
+                        "confidence_neutral": 0.05,
+                        "confidence_negative": 0.0,
+                    },
+                    {
+                        "sentiment": "negative",
+                        "opinion_mining": [{"target": "improvement", "sentiment": "negative"}],
+                        "key_phrases": ["needs improvement"],
+                        "confidence_positive": 0.05,
+                        "confidence_neutral": 0.1,
+                        "confidence_negative": 0.85,
+                    },
+                ]
+
+        class PhiStub:
+            def analyze(self, texts):
+                phi_started.set()
+                if not allow_phi_completion.wait(timeout=2):
+                    raise TimeoutError("Timed out waiting to finish language model analysis.")
+                return [
+                    {
+                        "sentiment": "positive",
+                        "opinion_mining": ["helpful support"],
+                        "key_phrases": ["support"],
+                    },
+                    {
+                        "sentiment": "negative",
+                        "opinion_mining": ["needs improvement"],
+                        "key_phrases": ["improvement"],
+                    },
+                ]
+
+        with patch.object(
+            feedback_app, "_create_analyzers", return_value=(AzureStub(), PhiStub(), "Demo heuristic analyzer")
+        ):
+            response = self.client.post(
+                "/",
+                data={"feedback_file": (file_obj, "feedback.xlsx")},
+                content_type="multipart/form-data",
+            )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(phi_started.wait(timeout=1))
+
+            with feedback_app._jobs_lock:
+                job_id = next(iter(feedback_app._analysis_jobs))
+
+            interim_response = self.client.get(f"/jobs/{job_id}/status")
+            self.assertEqual(interim_response.status_code, 200)
+            interim_payload = interim_response.get_json()
+            self.assertEqual(interim_payload["status"], "running")
+            self.assertEqual(interim_payload["processed_rows"], 0)
+            self.assertEqual(interim_payload["table_rows"][0][0], "Great support")
+            self.assertEqual(interim_payload["table_rows"][0][1], "positive")
+            self.assertEqual(interim_payload["table_rows"][0][7], "")
+            self.assertIsNone(interim_payload["download_url"])
+
+            allow_phi_completion.set()
+            deadline = time.monotonic() + 2
+            final_payload = None
+            while time.monotonic() < deadline:
+                final_response = self.client.get(f"/jobs/{job_id}/status")
+                final_payload = final_response.get_json()
+                if final_payload["status"] == "completed":
+                    break
+                time.sleep(0.05)
+
+            self.assertIsNotNone(final_payload)
+            self.assertEqual(final_payload["status"], "completed")
+            self.assertEqual(final_payload["processed_rows"], 2)
+            self.assertEqual(final_payload["table_rows"][0][7], "positive")
+            self.assertTrue(final_payload["download_url"])
 
 
 if __name__ == "__main__":

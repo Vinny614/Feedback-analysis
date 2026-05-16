@@ -12,12 +12,15 @@ import requests
 from flask import Flask, jsonify, render_template, request, url_for
 
 from feedback_analysis import (
+    AZURE_ENRICHMENT_COLUMNS,
     ENRICHMENT_COLUMNS,
+    LANGUAGE_MODEL_ENRICHMENT_COLUMNS,
     AzureLanguageAnalyzer,
     DemoHeuristicAnalyzer,
     PhiAnalyzer,
+    build_azure_enrichment_values,
+    build_language_model_enrichment_values,
     detect_feedback_column,
-    enrich_feedback_dataframe,
 )
 
 app = Flask(__name__)
@@ -164,9 +167,10 @@ def _process_analysis_job(job_id: str, feedback_column: str, use_mock: bool) -> 
                 output_df: pd.DataFrame = job["output_df"]
                 chunk_end = min(chunk_start + chunk_size, total_rows)
                 input_chunk = output_df.iloc[chunk_start:chunk_end, :].copy()
+                chunk_texts = input_chunk[feedback_column].fillna("").astype(str).tolist()
 
-            enriched_chunk = enrich_feedback_dataframe(
-                input_chunk, feedback_column, azure_analyzer, phi_analyzer
+            azure_enrichment_values = build_azure_enrichment_values(
+                azure_analyzer.analyze(chunk_texts), len(input_chunk)
             )
 
             with _jobs_lock:
@@ -174,9 +178,24 @@ def _process_analysis_job(job_id: str, feedback_column: str, use_mock: bool) -> 
                 if job is None:
                     return
                 output_df = job["output_df"]
-                output_df.loc[input_chunk.index, ENRICHMENT_COLUMNS] = enriched_chunk[
-                    ENRICHMENT_COLUMNS
-                ]
+                for column_name in AZURE_ENRICHMENT_COLUMNS:
+                    output_df.loc[input_chunk.index, column_name] = azure_enrichment_values[
+                        column_name
+                    ]
+
+            language_model_enrichment_values = build_language_model_enrichment_values(
+                phi_analyzer.analyze(chunk_texts), len(input_chunk)
+            )
+
+            with _jobs_lock:
+                job = _analysis_jobs.get(job_id)
+                if job is None:
+                    return
+                output_df = job["output_df"]
+                for column_name in LANGUAGE_MODEL_ENRICHMENT_COLUMNS:
+                    output_df.loc[input_chunk.index, column_name] = (
+                        language_model_enrichment_values[column_name]
+                    )
                 job["processed_rows"] = chunk_end
 
         with _jobs_lock:
