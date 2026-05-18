@@ -348,7 +348,14 @@ def _parse_retry_after_seconds(response: requests.Response) -> int | None:
 def _post_with_retry(url: str, headers: Dict[str, str], json: Dict[str, Any], timeout: int) -> requests.Response:
     last_response: requests.Response | None = None
     for retry_index in range(MAX_RETRY_ATTEMPTS + 1):
-        response = requests.post(url, headers=headers, json=json, timeout=timeout)
+        try:
+            response = requests.post(url, headers=headers, json=json, timeout=timeout)
+        except (requests.Timeout, requests.ConnectionError):
+            if retry_index < MAX_RETRY_ATTEMPTS:
+                retry_after = min(BASE_RETRY_SECONDS * (2**retry_index), MAX_RETRY_SECONDS)
+                time.sleep(retry_after)
+                continue
+            raise
         last_response = response
 
         if response.status_code not in RETRYABLE_STATUS_CODES:

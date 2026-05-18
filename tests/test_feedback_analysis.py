@@ -6,6 +6,7 @@ import pandas as pd
 import requests
 
 from feedback_analysis import (
+    BASE_RETRY_SECONDS,
     MAX_RETRY_ATTEMPTS,
     _post_with_retry,
     _build_service_headers,
@@ -207,6 +208,66 @@ class FeedbackAnalysisTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(post_mock.call_count, 2)
         sleep_mock.assert_called_once_with(0)
+
+    def test_post_with_retry_recovers_from_timeout(self):
+        success = self._build_response(200, {"ok": True})
+
+        with (
+            patch(
+                "feedback_analysis.requests.post",
+                side_effect=[requests.Timeout(), success],
+            ) as post_mock,
+            patch("feedback_analysis.time.sleep") as sleep_mock,
+        ):
+            response = _post_with_retry(
+                "https://example.test",
+                headers={"api-key": "test"},
+                json={"sample": "payload"},
+                timeout=30,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(post_mock.call_count, 2)
+        sleep_mock.assert_called_once_with(BASE_RETRY_SECONDS)
+
+    def test_post_with_retry_raises_after_max_timeout_retries(self):
+        with (
+            patch(
+                "feedback_analysis.requests.post",
+                side_effect=requests.Timeout(),
+            ) as post_mock,
+            patch("feedback_analysis.time.sleep"),
+        ):
+            with self.assertRaises(requests.Timeout):
+                _post_with_retry(
+                    "https://example.test",
+                    headers={"api-key": "test"},
+                    json={"sample": "payload"},
+                    timeout=30,
+                )
+
+        self.assertEqual(post_mock.call_count, MAX_RETRY_ATTEMPTS + 1)
+
+    def test_post_with_retry_recovers_from_connection_error(self):
+        success = self._build_response(200, {"ok": True})
+
+        with (
+            patch(
+                "feedback_analysis.requests.post",
+                side_effect=[requests.ConnectionError(), success],
+            ) as post_mock,
+            patch("feedback_analysis.time.sleep") as sleep_mock,
+        ):
+            response = _post_with_retry(
+                "https://example.test",
+                headers={"api-key": "test"},
+                json={"sample": "payload"},
+                timeout=30,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(post_mock.call_count, 2)
+        sleep_mock.assert_called_once_with(BASE_RETRY_SECONDS)
 
     def test_post_with_retry_raises_after_max_retries(self):
         throttled = self._build_response(429, {"error": {"message": "rate limit"}}, {"Retry-After": "0"})
