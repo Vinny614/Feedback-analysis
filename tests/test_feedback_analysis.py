@@ -209,7 +209,7 @@ class FeedbackAnalysisTests(unittest.TestCase):
         self.assertEqual(post_mock.call_count, 2)
         sleep_mock.assert_called_once_with(0)
 
-    def test_post_with_retry_retries_on_timeout_then_succeeds(self):
+    def test_post_with_retry_recovers_from_timeout(self):
         success = self._build_response(200, {"ok": True})
 
         with (
@@ -248,7 +248,7 @@ class FeedbackAnalysisTests(unittest.TestCase):
 
         self.assertEqual(post_mock.call_count, MAX_RETRY_ATTEMPTS + 1)
 
-    def test_post_with_retry_retries_on_connection_error_then_succeeds(self):
+    def test_post_with_retry_recovers_from_connection_error(self):
         success = self._build_response(200, {"ok": True})
 
         with (
