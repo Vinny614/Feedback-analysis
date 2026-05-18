@@ -386,7 +386,9 @@ def index():
             use_mock = os.getenv("DEMO_USE_MOCK_ANALYZERS", "false").lower() == "true"
             output_df = _initialize_output_dataframe(input_df)
             job_id = _enqueue_analysis_job(input_df, feedback_column, use_mock)
-            context["table_html"] = output_df.to_html(index=False, classes="result-table")
+            context["table_html"] = output_df.to_html(
+                index=False, classes="govuk-table result-table"
+            )
             context["job_id"] = job_id
             context["status_url"] = url_for("analysis_job_status", job_id=job_id)
             context["feedback_column"] = feedback_column
