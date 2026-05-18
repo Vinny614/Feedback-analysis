@@ -269,7 +269,7 @@ class FeedbackAnalysisTests(unittest.TestCase):
         self.assertEqual(post_mock.call_count, 2)
         sleep_mock.assert_called_once_with(BASE_RETRY_SECONDS)
 
-
+    def test_post_with_retry_raises_after_max_retries(self):
         throttled = self._build_response(429, {"error": {"message": "rate limit"}}, {"Retry-After": "0"})
 
         with (
