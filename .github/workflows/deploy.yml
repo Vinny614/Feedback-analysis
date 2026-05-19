@@ -1,15 +1,16 @@
-name: Deploy or Teardown Azure Environment
+name: Deploy, Update, or Teardown Azure Environment
 
 on:
   workflow_dispatch:
     inputs:
       operation:
-        description: "Choose whether to deploy or teardown infrastructure"
+        description: "Choose whether to deploy infrastructure, update the webapp, or teardown"
         required: true
         type: choice
         default: deploy
         options:
           - deploy
+          - update-webapp
           - teardown
       confirm_teardown:
         description: "Type DESTROY to confirm teardown (required only for teardown)"
@@ -147,6 +148,17 @@ jobs:
             fi
           fi
 
+      - name: Validate existing deployment state for webapp update
+        if: ${{ github.event.inputs.operation == 'update-webapp' }}
+        run: |
+          if ! find . -maxdepth 1 -name 'terraform.tfstate' -print -quit | grep -q .; then
+            echo "update-webapp requires an existing deployment state cache. Run the deploy operation first."
+            exit 1
+          fi
+
+          terraform output -raw app_name > /dev/null
+          terraform output -raw resource_group_name > /dev/null
+
       - name: Terraform apply
         if: ${{ github.event.inputs.operation == 'deploy' }}
         run: |
@@ -154,7 +166,7 @@ jobs:
           terraform apply -input=false -auto-approve tfplan
 
       - name: Deploy app code to Azure Web App
-        if: ${{ github.event.inputs.operation == 'deploy' }}
+        if: ${{ github.event.inputs.operation == 'deploy' || github.event.inputs.operation == 'update-webapp' }}
         run: |
           APP_NAME="$(terraform output -raw app_name)"
           RESOURCE_GROUP_NAME="$(terraform output -raw resource_group_name)"
