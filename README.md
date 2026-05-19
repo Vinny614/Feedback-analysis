@@ -112,7 +112,7 @@ terraform destroy
 
 This removes all Azure resources created for the demo.
 
-## GitHub Actions deployment (with teardown option)
+## GitHub Actions deployment (with webapp update and teardown options)
 
 This repository includes a manual workflow at:
 
@@ -120,13 +120,16 @@ This repository includes a manual workflow at:
 
 The workflow opts JavaScript-based GitHub Actions into the Node.js 24 runtime to stay ahead of the Node.js 20 deprecation on GitHub-hosted runners.
 
-The workflow supports two operations:
+The workflow supports three operations:
 
 - `deploy`: runs `terraform apply` and then deploys app code with `az webapp up`
+- `update-webapp`: skips Terraform changes and only re-deploys the app code with `az webapp up`
 - `teardown`: runs `terraform destroy` (requires `confirm_teardown=DESTROY`)
 
 To avoid provisioning a brand-new infrastructure set on every re-run, the workflow restores and saves
 `infra/terraform/terraform.tfstate` between runs using GitHub Actions cache.
+The `update-webapp` option relies on that cached Terraform state, so it should be used only after a
+successful `deploy` run has already provisioned the environment.
 
 ### Required GitHub repository secrets
 
@@ -138,10 +141,11 @@ To avoid provisioning a brand-new infrastructure set on every re-run, the workfl
 ### How to run
 
 1. Open **Actions** in GitHub.
-2. Select **Deploy or Teardown Azure Environment**.
+2. Select **Deploy, Update, or Teardown Azure Environment**.
 3. Click **Run workflow**.
 4. Choose:
    - `deploy` to provision + deploy app code, or
+   - `update-webapp` to push UI/app changes to the existing Azure Web App without re-running Terraform, or
    - `teardown` and set `confirm_teardown` to `DESTROY` to remove resources.
 
 ## Run locally
