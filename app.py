@@ -299,10 +299,11 @@ def _process_analysis_job(job_id: str, feedback_column: str, use_mock: bool) -> 
                 if job is None:
                     return
                 output_df = job["output_df"]
+                row_slice = slice(chunk_start, chunk_end)
                 for column_name in AZURE_ENRICHMENT_COLUMNS:
-                    output_df.loc[input_chunk.index, column_name] = azure_enrichment_values[
-                        column_name
-                    ]
+                    output_df.iloc[row_slice, output_df.columns.get_loc(column_name)] = (
+                        azure_enrichment_values[column_name]
+                    )
 
             language_model_enrichment_values = build_language_model_enrichment_values(
                 phi_analyzer.analyze(chunk_texts), len(input_chunk)
@@ -313,8 +314,9 @@ def _process_analysis_job(job_id: str, feedback_column: str, use_mock: bool) -> 
                 if job is None:
                     return
                 output_df = job["output_df"]
+                row_slice = slice(chunk_start, chunk_end)
                 for column_name in LANGUAGE_MODEL_ENRICHMENT_COLUMNS:
-                    output_df.loc[input_chunk.index, column_name] = (
+                    output_df.iloc[row_slice, output_df.columns.get_loc(column_name)] = (
                         language_model_enrichment_values[column_name]
                     )
                 job["processed_rows"] = chunk_end

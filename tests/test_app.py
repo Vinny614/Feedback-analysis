@@ -105,6 +105,58 @@ class AppTests(unittest.TestCase):
         with feedback_app._jobs_lock:
             self.assertEqual(len(feedback_app._analysis_jobs), 1)
 
+    def test_enqueue_job_processes_all_rows_with_duplicate_index_labels(self):
+        os.environ["ANALYSIS_CHUNK_SIZE"] = "1"
+        df = pd.DataFrame({"Feedback": ["Great support", "Needs improvement", "Fast response"]})
+        df.index = [7, 7, 7]
+
+        class AzureStub:
+            def analyze(self, texts):
+                return [
+                    {
+                        "sentiment": f"azure-{text}",
+                        "opinion_mining": [],
+                        "key_phrases": [],
+                        "confidence_positive": 0.0,
+                        "confidence_neutral": 1.0,
+                        "confidence_negative": 0.0,
+                    }
+                    for text in texts
+                ]
+
+        class PhiStub:
+            def analyze(self, texts):
+                return [
+                    {
+                        "sentiment": f"phi-{text}",
+                        "opinion_mining": [],
+                        "key_phrases": [],
+                    }
+                    for text in texts
+                ]
+
+        with (
+            patch.object(
+                feedback_app,
+                "_create_analyzers",
+                return_value=(AzureStub(), PhiStub(), "Demo heuristic analyzer"),
+            ),
+            patch.object(
+                feedback_app._job_executor,
+                "submit",
+                side_effect=lambda fn, *args, **kwargs: fn(*args, **kwargs),
+            ),
+        ):
+            job_id = feedback_app._enqueue_analysis_job(df, "Feedback", use_mock=False)
+
+        with feedback_app._jobs_lock:
+            job = feedback_app._analysis_jobs[job_id]
+            output_df = job["output_df"]
+
+        self.assertEqual(job["status"], "completed")
+        self.assertEqual(output_df["language_model_sentiment"].tolist(), ["phi-Great support", "phi-Needs improvement", "phi-Fast response"])
+        self.assertEqual(output_df["azure_sentiment"].tolist(), ["azure-Great support", "azure-Needs improvement", "azure-Fast response"])
+
     def test_model_label_prefers_model_name_and_version_over_deployment_name(self):
         os.environ["PHI_DEPLOYMENT_NAME"] = "chat-model"
         os.environ["PHI_MODEL_NAME"] = "gpt-4.1-mini"
