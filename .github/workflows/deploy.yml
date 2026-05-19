@@ -131,6 +131,7 @@ jobs:
           fi
 
       - name: Refresh Terraform state
+        if: ${{ github.event.inputs.operation != 'update-webapp' }}
         run: |
           if find . -maxdepth 1 -name 'terraform.tfstate' -print -quit | grep -q .; then
             STATE_LIST_FILE="$(mktemp "${TMPDIR:-/tmp}/state_list.XXXXXX")"
