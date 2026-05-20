@@ -3,12 +3,32 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Feedback Analysis Demo - GOV.UK</title>
+    <title>AI Demos - GOV.UK</title>
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/govuk-frontend@5.8.0/dist/govuk/govuk-frontend.min.css"
     />
     <style>
+      .app-sidebar-nav {
+        border-left: 4px solid #1d70b8;
+        padding-left: 15px;
+        margin-bottom: 30px;
+      }
+      .app-sidebar-nav__heading {
+        color: #505a5f;
+        margin-bottom: 10px;
+      }
+      .app-sidebar-nav__list {
+        margin: 0;
+      }
+      .app-sidebar-nav__item {
+        margin-bottom: 8px;
+      }
+      .app-sidebar-nav__item--active a {
+        font-weight: bold;
+        color: #0b0c0c;
+        text-decoration: none;
+      }
       .result-table {
         width: 100%;
         font-size: 0.8125rem;
@@ -45,63 +65,83 @@
     <header class="govuk-header" data-module="govuk-header">
       <div class="govuk-header__container govuk-width-container">
         <div class="govuk-header__content">
-          <a href="/" class="govuk-header__link govuk-header__service-name">Feedback Analysis Demo</a>
+          <a href="/" class="govuk-header__link govuk-header__service-name">AI Demos</a>
         </div>
       </div>
     </header>
 
     <div class="govuk-width-container">
       <main class="govuk-main-wrapper" id="main-content">
-        <h1 class="govuk-heading-xl">Feedback Analysis Demo</h1>
-        <p class="govuk-body">
-          Upload an Excel file with feedback rows. The app adds Azure AI Language and language model outputs as new
-          columns.
-        </p>
+        <div class="govuk-grid-row">
 
-        <form method="post" enctype="multipart/form-data">
-          <div class="govuk-form-group">
-            <label class="govuk-label govuk-label--s" for="feedback_file">Upload feedback spreadsheet</label>
-            <div id="feedback_file-hint" class="govuk-hint">Accepted formats: .xlsx and .xls</div>
-            <input
-              class="govuk-file-upload"
-              id="feedback_file"
-              name="feedback_file"
-              type="file"
-              accept=".xlsx,.xls"
-              aria-describedby="feedback_file-hint"
-              required
-            />
+          <div class="govuk-grid-column-one-quarter">
+            <nav class="app-sidebar-nav" aria-label="Demo navigation">
+              <h2 class="govuk-heading-s app-sidebar-nav__heading">Demos</h2>
+              <ul class="govuk-list app-sidebar-nav__list">
+                <li class="app-sidebar-nav__item app-sidebar-nav__item--active">
+                  <a class="govuk-link govuk-link--no-visited-state" href="/">Feedback Analysis</a>
+                </li>
+                <li class="app-sidebar-nav__item">
+                  <a class="govuk-link govuk-link--no-visited-state" href="/document-extraction">Document Extraction and Formatting</a>
+                </li>
+              </ul>
+            </nav>
           </div>
-          <button type="submit" class="govuk-button" data-module="govuk-button">Analyze</button>
-        </form>
 
-        {% if error %}
-        <p class="govuk-error-message"><span class="govuk-visually-hidden">Error:</span> {{ error }}</p>
-        {% endif %}
+          <div class="govuk-grid-column-three-quarters">
+            <h1 class="govuk-heading-xl">Feedback Analysis Demo</h1>
+            <p class="govuk-body">
+              Upload an Excel file with feedback rows. The app adds Azure AI Language and language model outputs as new
+              columns.
+            </p>
 
-        <p id="job-status" class="govuk-body"></p>
+            <form method="post" enctype="multipart/form-data">
+              <div class="govuk-form-group">
+                <label class="govuk-label govuk-label--s" for="feedback_file">Upload feedback spreadsheet</label>
+                <div id="feedback_file-hint" class="govuk-hint">Accepted formats: .xlsx and .xls</div>
+                <input
+                  class="govuk-file-upload"
+                  id="feedback_file"
+                  name="feedback_file"
+                  type="file"
+                  accept=".xlsx,.xls"
+                  aria-describedby="feedback_file-hint"
+                  required
+                />
+              </div>
+              <button type="submit" class="govuk-button" data-module="govuk-button">Analyze</button>
+            </form>
 
-        {% if table_html %}
-        <dl class="govuk-summary-list">
-          <div class="govuk-summary-list__row">
-            <dt class="govuk-summary-list__key">Detected feedback column</dt>
-            <dd class="govuk-summary-list__value" id="feedback-column">{{ feedback_column }}</dd>
+            {% if error %}
+            <p class="govuk-error-message"><span class="govuk-visually-hidden">Error:</span> {{ error }}</p>
+            {% endif %}
+
+            <p id="job-status" class="govuk-body"></p>
+
+            {% if table_html %}
+            <dl class="govuk-summary-list">
+              <div class="govuk-summary-list__row">
+                <dt class="govuk-summary-list__key">Detected feedback column</dt>
+                <dd class="govuk-summary-list__value" id="feedback-column">{{ feedback_column }}</dd>
+              </div>
+              <div class="govuk-summary-list__row">
+                <dt class="govuk-summary-list__key">Language model used</dt>
+                <dd class="govuk-summary-list__value" id="language-model-used">{{ language_model_used }}</dd>
+              </div>
+            </dl>
+            <p id="download-link" class="govuk-body">
+              {% if download_url %}
+              <a class="govuk-link" href="{{ download_url }}" download="feedback_analysis_output.xlsx">Download enriched Excel</a>
+              {% endif %}
+            </p>
+            <div class="app-table-wrapper">
+              <div id="results-table">{{ table_html|safe }}</div>
+            </div>
+            <div id="overall-summary" class="govuk-inset-text"></div>
+            {% endif %}
           </div>
-          <div class="govuk-summary-list__row">
-            <dt class="govuk-summary-list__key">Language model used</dt>
-            <dd class="govuk-summary-list__value" id="language-model-used">{{ language_model_used }}</dd>
-          </div>
-        </dl>
-        <p id="download-link" class="govuk-body">
-          {% if download_url %}
-          <a class="govuk-link" href="{{ download_url }}" download="feedback_analysis_output.xlsx">Download enriched Excel</a>
-          {% endif %}
-        </p>
-        <div class="app-table-wrapper">
-          <div id="results-table">{{ table_html|safe }}</div>
+
         </div>
-        <div id="overall-summary" class="govuk-inset-text"></div>
-        {% endif %}
       </main>
     </div>
 
