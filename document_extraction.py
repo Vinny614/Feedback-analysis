@@ -118,7 +118,7 @@ class MockDocumentFormatter:
             "title": title,
             "summary": (
                 "This is a demo summary of the uploaded document. "
-                "The document has been processed by the mock analyser."
+                "The document has been processed by the mock analyzer."
             ),
             "key_events": [
                 {"event": "Document created", "date": "2024-01-01", "time": None},
