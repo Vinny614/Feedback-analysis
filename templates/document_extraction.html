@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en" class="govuk-template">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Document Extraction and Formatting - GOV.UK</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/govuk-frontend@5.8.0/dist/govuk/govuk-frontend.min.css"
+    />
+    <style>
+      .app-sidebar-nav {
+        border-left: 4px solid #1d70b8;
+        padding-left: 15px;
+        margin-bottom: 30px;
+      }
+      .app-sidebar-nav__heading {
+        color: #505a5f;
+        margin-bottom: 10px;
+      }
+      .app-sidebar-nav__list {
+        margin: 0;
+      }
+      .app-sidebar-nav__item {
+        margin-bottom: 8px;
+      }
+      .app-sidebar-nav__item--active a {
+        font-weight: bold;
+        color: #0b0c0c;
+        text-decoration: none;
+      }
+      .app-output-template {
+        background: #f3f2f1;
+        padding: 20px 20px 10px;
+        margin-bottom: 30px;
+        border-left: 4px solid #b1b4b6;
+      }
+      .app-key-events-list {
+        margin: 0;
+        padding-left: 20px;
+      }
+      .app-key-events-list li {
+        margin-bottom: 8px;
+      }
+      .app-event-datetime {
+        display: block;
+        color: #505a5f;
+        font-size: 0.875rem;
+      }
+    </style>
+  </head>
+  <body class="govuk-template__body">
+    <script src="https://cdn.jsdelivr.net/npm/govuk-frontend@5.8.0/dist/govuk/govuk-frontend.min.js"></script>
+    <script>
+      window.GOVUKFrontend && window.GOVUKFrontend.initAll();
+    </script>
+    <a href="#main-content" class="govuk-skip-link">Skip to main content</a>
+
+    <header class="govuk-header" data-module="govuk-header">
+      <div class="govuk-header__container govuk-width-container">
+        <div class="govuk-header__content">
+          <a href="/" class="govuk-header__link govuk-header__service-name">AI Demos</a>
+        </div>
+      </div>
+    </header>
+
+    <div class="govuk-width-container">
+      <main class="govuk-main-wrapper" id="main-content">
+        <div class="govuk-grid-row">
+
+          <div class="govuk-grid-column-one-quarter">
+            <nav class="app-sidebar-nav" aria-label="Demo navigation">
+              <h2 class="govuk-heading-s app-sidebar-nav__heading">Demos</h2>
+              <ul class="govuk-list app-sidebar-nav__list">
+                <li class="app-sidebar-nav__item">
+                  <a class="govuk-link govuk-link--no-visited-state" href="/">Feedback Analysis</a>
+                </li>
+                <li class="app-sidebar-nav__item app-sidebar-nav__item--active">
+                  <a class="govuk-link govuk-link--no-visited-state" href="/document-extraction">Document Extraction and Formatting</a>
+                </li>
+              </ul>
+            </nav>
+          </div>
+
+          <div class="govuk-grid-column-three-quarters">
+            <h1 class="govuk-heading-xl">Document Extraction and Formatting</h1>
+            <p class="govuk-body">
+              Upload a Word (.docx) or PDF document. Azure AI will extract and present the
+              information in a structured format.
+            </p>
+
+            <div class="app-output-template">
+              <h2 class="govuk-heading-s">Output format</h2>
+              <dl class="govuk-summary-list">
+                <div class="govuk-summary-list__row">
+                  <dt class="govuk-summary-list__key">Document Title</dt>
+                  <dd class="govuk-summary-list__value govuk-hint">
+                    Read from the document, or generated from the content
+                  </dd>
+                </div>
+                <div class="govuk-summary-list__row">
+                  <dt class="govuk-summary-list__key">Summary</dt>
+                  <dd class="govuk-summary-list__value govuk-hint">
+                    Short summary of the document (2 sentences max)
+                  </dd>
+                </div>
+                <div class="govuk-summary-list__row">
+                  <dt class="govuk-summary-list__key">Key Events</dt>
+                  <dd class="govuk-summary-list__value govuk-hint">
+                    Major events mentioned in the document with dates and times, in chronological order
+                  </dd>
+                </div>
+              </dl>
+            </div>
+
+            <form method="post" enctype="multipart/form-data">
+              <div class="govuk-form-group">
+                <label class="govuk-label govuk-label--s" for="document_file">Upload document</label>
+                <div id="document_file-hint" class="govuk-hint">Accepted formats: .docx and .pdf</div>
+                <input
+                  class="govuk-file-upload"
+                  id="document_file"
+                  name="document_file"
+                  type="file"
+                  accept=".docx,.pdf"
+                  aria-describedby="document_file-hint"
+                  required
+                />
+              </div>
+              <button type="submit" class="govuk-button" data-module="govuk-button">Extract</button>
+            </form>
+
+            {% if error %}
+            <p class="govuk-error-message"><span class="govuk-visually-hidden">Error:</span> {{ error }}</p>
+            {% endif %}
+
+            {% if result %}
+            <hr class="govuk-section-break govuk-section-break--m govuk-section-break--visible" />
+            <h2 class="govuk-heading-l">Extracted information</h2>
+            <dl class="govuk-summary-list">
+              <div class="govuk-summary-list__row">
+                <dt class="govuk-summary-list__key">Document Title</dt>
+                <dd class="govuk-summary-list__value">{{ result.title }}</dd>
+              </div>
+              <div class="govuk-summary-list__row">
+                <dt class="govuk-summary-list__key">Summary</dt>
+                <dd class="govuk-summary-list__value">{{ result.summary }}</dd>
+              </div>
+              <div class="govuk-summary-list__row">
+                <dt class="govuk-summary-list__key">Key Events</dt>
+                <dd class="govuk-summary-list__value">
+                  {% if result.key_events %}
+                  <ol class="govuk-list app-key-events-list">
+                    {% for event in result.key_events %}
+                    <li>
+                      {{ event.event }}
+                      {% if event.date or event.time %}
+                      <span class="app-event-datetime">
+                        {% if event.date %}{{ event.date }}{% endif %}
+                        {% if event.date and event.time %} at {{ event.time }}
+                        {% elif event.time %}{{ event.time }}{% endif %}
+                      </span>
+                      {% endif %}
+                    </li>
+                    {% endfor %}
+                  </ol>
+                  {% else %}
+                  <span class="govuk-hint">No key events identified.</span>
+                  {% endif %}
+                </dd>
+              </div>
+            </dl>
+            {% endif %}
+          </div>
+
+        </div>
+      </main>
+    </div>
+  </body>
+</html>

@@ -13,6 +13,7 @@ import pandas as pd
 import requests
 from flask import Flask, jsonify, render_template, request, url_for
 
+import document_extraction as doc_extraction
 from feedback_analysis import (
     AZURE_ENRICHMENT_COLUMNS,
     ENRICHMENT_COLUMNS,
@@ -365,6 +366,7 @@ def index():
         "overall_summary": None,
         "job_id": None,
         "status_url": None,
+        "active_page": "feedback",
     }
     if request.method == "POST":
         uploaded_file = request.files.get("feedback_file")
@@ -409,6 +411,54 @@ def index():
             context["error"] = "Unable to process the uploaded file."
 
     return render_template("index.html", **context)
+
+
+@app.route("/document-extraction", methods=["GET", "POST"])
+def document_extraction():
+    context: Dict[str, Any] = {"error": None, "result": None, "active_page": "document"}
+    if request.method == "POST":
+        uploaded_file = request.files.get("document_file")
+        if not uploaded_file or uploaded_file.filename == "":
+            context["error"] = "Please upload a Word (.docx) or PDF (.pdf) file."
+            return render_template("document_extraction.html", **context)
+
+        filename = uploaded_file.filename
+        if not (filename.lower().endswith(".docx") or filename.lower().endswith(".pdf")):
+            context["error"] = "Unsupported file format. Please upload a .docx or .pdf file."
+            return render_template("document_extraction.html", **context)
+
+        try:
+            file_bytes = uploaded_file.read()
+            text = doc_extraction.extract_text(file_bytes, filename)
+            if not text.strip():
+                raise ValueError("No text could be extracted from the uploaded document.")
+
+            use_mock = os.getenv("DEMO_USE_MOCK_ANALYZERS", "false").lower() == "true"
+            if use_mock:
+                formatter: Any = doc_extraction.MockDocumentFormatter()
+            else:
+                formatter = doc_extraction.DocumentFormatter(
+                    endpoint=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
+                    deployment=_resolve_language_model_deployment_name(),
+                    api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview"),
+                    api_key=os.getenv("AZURE_OPENAI_KEY", ""),
+                )
+            context["result"] = formatter.format(text)
+        except ValueError as exc:
+            context["error"] = str(exc)
+        except requests.RequestException as exc:
+            logger.exception("External service request failed during document extraction.")
+            details = _format_request_exception(exc)
+            context["error"] = (
+                "Document extraction request to Azure services failed. "
+                "Check endpoint configuration and identity permissions. "
+                f"{details}"
+            ).strip()
+        except Exception:
+            logger.exception("Unexpected error during document extraction.")
+            context["error"] = "Unable to process the uploaded document."
+
+    return render_template("document_extraction.html", **context)
 
 
 @app.route("/jobs/<job_id>/status", methods=["GET"])
