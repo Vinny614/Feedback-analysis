@@ -18,6 +18,11 @@ A minimal Flask demo for analyzing feedback from an uploaded Excel file.
 - Renders the enriched table in the web UI
 - Processes uploaded files in a background job and shows progress while rows are analyzed
 - Lets you download the enriched file as Excel
+- Includes a Document Extraction and Formatting page that:
+  - accepts `.docx` and `.pdf` uploads
+  - extracts title, summary, and key events
+  - renders those fields into a fixed Word template
+  - shows extracted results in the UI and provides a downloadable reformatted `.docx`
 
 ## Authentication — Entra ID locally, app settings in Azure
 
@@ -49,6 +54,10 @@ Optional if you want to use service keys instead of Entra ID:
 Optional for local/demo verification without Azure credentials:
 
 - `DEMO_USE_MOCK_ANALYZERS=true`
+
+Optional document-template override:
+
+- `DOCUMENT_TEMPLATE_PATH` (defaults to `word_templates/document_reformat_template.docx`)
 
 Optional processing controls:
 
@@ -191,3 +200,15 @@ gunicorn --bind=0.0.0.0:$PORT --timeout 300 wsgi:application
 ```bash
 python -m unittest discover -s tests
 ```
+
+## Document template formatting contract
+
+The document reformat output uses a single fixed `.docx` template with required placeholders:
+
+- `{{TITLE}}`
+- `{{SUMMARY}}`
+- `{{KEY_EVENTS}}`
+
+The extracted output must include title, summary, and key events; if template generation fails,
+the page still shows extracted information and reports template formatting status, but no download
+link is provided.
