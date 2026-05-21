@@ -490,6 +490,11 @@ def document_extraction():
             ).strip()
         except Exception:
             logger.exception("Unexpected error during document extraction.")
+            if context["result"] is not None:
+                context["template_status"] = (
+                    "Structured extraction completed, but template formatting failed unexpectedly."
+                )
+                context["template_status_level"] = "warning"
             context["error"] = "Unable to process the uploaded document."
 
     return render_template("document_extraction.html", **context)

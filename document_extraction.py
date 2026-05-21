@@ -229,7 +229,10 @@ class TemplateDocumentRenderer:
         try:
             doc = Document(str(resolved_template_path))
         except Exception as exc:
-            raise ValueError("Word template could not be opened. Use a valid .docx template file.") from exc
+            raise ValueError(
+                "Word template could not be opened. "
+                f"Use a valid .docx template file at {resolved_template_path}."
+            ) from exc
 
         missing_placeholders = [
             placeholder
