@@ -244,7 +244,7 @@ class DocumentExtractionRouteTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         body = response.get_data(as_text=True)
-        self.assertIn("Structured extraction completed, but template formatting failed.", body)
+        self.assertIn("Structured extraction completed, but template formatting failed:", body)
         self.assertIn("Word template file is missing.", body)
         self.assertIn("Extracted information", body)
 

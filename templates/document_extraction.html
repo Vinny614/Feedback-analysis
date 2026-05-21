@@ -138,10 +138,17 @@
             {% endif %}
 
             {% if template_status %}
-            <div class="app-status-box {% if template_status_level == 'success' %}govuk-notification-banner{% elif template_status_level == 'warning' %}govuk-inset-text{% else %}govuk-hint{% endif %}">
+            <div
+              class="app-status-box {% if template_status_level == 'success' %}govuk-notification-banner{% elif template_status_level == 'warning' %}govuk-inset-text{% else %}govuk-hint{% endif %}"
+              {% if template_status_level == 'success' %}
+              role="region"
+              aria-labelledby="template-status-title"
+              data-module="govuk-notification-banner"
+              {% endif %}
+            >
               {% if template_status_level == 'success' %}
               <div class="govuk-notification-banner__content">
-                <p class="govuk-notification-banner__heading">{{ template_status }}</p>
+                <p class="govuk-notification-banner__heading" id="template-status-title">{{ template_status }}</p>
               </div>
               {% else %}
               <p class="govuk-body">{{ template_status }}</p>

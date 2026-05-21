@@ -444,8 +444,6 @@ def document_extraction():
             return render_template("document_extraction.html", **context)
 
         try:
-            context["template_status"] = "Template formatting triggered."
-            context["template_status_level"] = "info"
             file_bytes = uploaded_file.read()
             text = doc_extraction.extract_text(file_bytes, filename)
             if not text.strip():
@@ -467,6 +465,8 @@ def document_extraction():
             renderer = doc_extraction.TemplateDocumentRenderer(
                 template_path=os.getenv("DOCUMENT_TEMPLATE_PATH", "")
             )
+            context["template_status"] = "Template formatting triggered."
+            context["template_status_level"] = "info"
             output_bytes = renderer.render(result)
             context["reformatted_download_url"] = _build_docx_download_link(output_bytes)
             context["reformatted_filename"] = "reformatted_document_output.docx"
@@ -475,7 +475,8 @@ def document_extraction():
         except ValueError as exc:
             if context["result"] is not None:
                 context["template_status"] = (
-                    "Structured extraction completed, but template formatting failed."
+                    "Structured extraction completed, but template formatting failed: "
+                    f"{str(exc)}"
                 )
                 context["template_status_level"] = "warning"
             context["error"] = str(exc)

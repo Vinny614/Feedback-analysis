@@ -144,7 +144,7 @@ def resolve_template_path(template_path: str = "") -> Path:
     return DEFAULT_TEMPLATE_PATH
 
 
-def _build_key_events_text(key_events: List[Dict[str, Optional[str]]]) -> str:
+def _format_key_events_text(key_events: List[Dict[str, Optional[str]]]) -> str:
     if not key_events:
         return "No key events identified."
     lines = []
@@ -177,6 +177,14 @@ def _iter_template_text_nodes(doc: Any) -> List[Any]:
 def _replace_placeholder_in_doc(doc: Any, placeholder: str, replacement: str) -> int:
     replaced = 0
     for paragraph in _iter_template_text_nodes(doc):
+        replaced_in_runs = False
+        for run in paragraph.runs:
+            if placeholder in run.text:
+                run.text = run.text.replace(placeholder, replacement)
+                replaced_in_runs = True
+        if replaced_in_runs:
+            replaced += 1
+            continue
         if placeholder in paragraph.text:
             paragraph.text = paragraph.text.replace(placeholder, replacement)
             replaced += 1
@@ -237,7 +245,7 @@ class TemplateDocumentRenderer:
         replacements = {
             TEMPLATE_PLACEHOLDERS["title"]: validated["title"],
             TEMPLATE_PLACEHOLDERS["summary"]: validated["summary"],
-            TEMPLATE_PLACEHOLDERS["key_events"]: _build_key_events_text(validated["key_events"]),
+            TEMPLATE_PLACEHOLDERS["key_events"]: _format_key_events_text(validated["key_events"]),
         }
 
         for placeholder, replacement in replacements.items():
