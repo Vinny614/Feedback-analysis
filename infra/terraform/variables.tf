@@ -58,6 +58,12 @@ variable "phi_deployment_capacity" {
   default     = 1
 }
 
+variable "bing_search_sku" {
+  description = "SKU for the Bing Search v7 resource."
+  type        = string
+  default     = "S1"
+}
+
 variable "app_service_sku" {
   description = "SKU for the App Service Plan (e.g. B1, B2, S1)."
   type        = string

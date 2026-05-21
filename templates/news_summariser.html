@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en" class="govuk-template">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>News Topic Summariser - GOV.UK</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/govuk-frontend@5.8.0/dist/govuk/govuk-frontend.min.css"
+    />
+    <style>
+      .app-sidebar-nav {
+        border-left: 4px solid #1d70b8;
+        padding-left: 15px;
+        margin-bottom: 30px;
+      }
+      .app-sidebar-nav__heading {
+        color: #505a5f;
+        margin-bottom: 10px;
+      }
+      .app-sidebar-nav__list {
+        margin: 0;
+      }
+      .app-sidebar-nav__item {
+        margin-bottom: 8px;
+      }
+      .app-sidebar-nav__item--active a {
+        font-weight: bold;
+        color: #0b0c0c;
+        text-decoration: none;
+      }
+      .app-status-box {
+        margin-top: 15px;
+      }
+      .app-perspective-panel {
+        background: #f3f2f1;
+        padding: 20px 20px 10px;
+        margin-bottom: 20px;
+        border-left: 4px solid #b1b4b6;
+      }
+      .app-perspective-panel--left {
+        border-left-color: #1d70b8;
+      }
+      .app-perspective-panel--right {
+        border-left-color: #d4351c;
+      }
+      .app-perspective-panel--consensus {
+        border-left-color: #00703c;
+      }
+      .app-source-lean {
+        display: inline-block;
+        font-size: 0.75rem;
+        padding: 2px 6px;
+        border-radius: 2px;
+        background: #b1b4b6;
+        color: #0b0c0c;
+        margin-left: 6px;
+        vertical-align: middle;
+      }
+      .app-source-lean--left { background: #d2e2f1; }
+      .app-source-lean--centre-left { background: #bbd4e9; }
+      .app-source-lean--centre { background: #e0e0e0; }
+      .app-source-lean--centre-right { background: #f5cfc9; }
+      .app-source-lean--right { background: #f0b8b0; }
+      #news-status {
+        margin-top: 15px;
+      }
+      #news-result {
+        margin-top: 20px;
+      }
+    </style>
+  </head>
+  <body class="govuk-template__body">
+    <script src="https://cdn.jsdelivr.net/npm/govuk-frontend@5.8.0/dist/govuk/govuk-frontend.min.js"></script>
+    <script>
+      window.GOVUKFrontend && window.GOVUKFrontend.initAll();
+    </script>
+    <a href="#main-content" class="govuk-skip-link">Skip to main content</a>
+
+    <header class="govuk-header" data-module="govuk-header">
+      <div class="govuk-header__container govuk-width-container">
+        <div class="govuk-header__content">
+          <a href="/" class="govuk-header__link govuk-header__service-name">AI Demos</a>
+        </div>
+      </div>
+    </header>
+
+    <div class="govuk-width-container">
+      <main class="govuk-main-wrapper" id="main-content">
+        <div class="govuk-grid-row">
+
+          <div class="govuk-grid-column-one-quarter">
+            <nav class="app-sidebar-nav" aria-label="Demo navigation">
+              <h2 class="govuk-heading-s app-sidebar-nav__heading">Demos</h2>
+              <ul class="govuk-list app-sidebar-nav__list">
+                <li class="app-sidebar-nav__item">
+                  <a class="govuk-link govuk-link--no-visited-state" href="/">Feedback Analysis</a>
+                </li>
+                <li class="app-sidebar-nav__item">
+                  <a class="govuk-link govuk-link--no-visited-state" href="/document-extraction">Document Extraction and Formatting</a>
+                </li>
+                <li class="app-sidebar-nav__item app-sidebar-nav__item--active">
+                  <a class="govuk-link govuk-link--no-visited-state" href="/news-summariser">News Topic Summariser</a>
+                </li>
+              </ul>
+            </nav>
+          </div>
+
+          <div class="govuk-grid-column-three-quarters">
+            <h1 class="govuk-heading-xl">News Topic Summariser</h1>
+            <p class="govuk-body">
+              Enter a news topic. The tool searches public news sources using Bing News, retrieves
+              articles from reputable outlets across the political spectrum, and uses Azure AI to
+              produce a balanced summary of key perspectives.
+            </p>
+            <div class="govuk-warning-text">
+              <span class="govuk-warning-text__icon" aria-hidden="true">!</span>
+              <strong class="govuk-warning-text__text">
+                <span class="govuk-visually-hidden">Warning</span>
+                Source perspective labels are approximate. Always read the original articles before drawing conclusions.
+              </strong>
+            </div>
+
+            <form method="post" id="news-form">
+              <div class="govuk-form-group">
+                <label class="govuk-label govuk-label--s" for="topic">News topic</label>
+                <div id="topic-hint" class="govuk-hint">For example: UK general election, climate change policy, NHS funding</div>
+                <input
+                  class="govuk-input"
+                  id="topic"
+                  name="topic"
+                  type="text"
+                  maxlength="200"
+                  aria-describedby="topic-hint"
+                  value="{{ topic|default('', true)|e }}"
+                  required
+                />
+              </div>
+              <div class="govuk-form-group">
+                <label class="govuk-label govuk-label--s" for="freshness">Article freshness</label>
+                <select class="govuk-select" id="freshness" name="freshness">
+                  <option value="Day" {% if freshness == 'Day' %}selected{% endif %}>Past 24 hours</option>
+                  <option value="Week" {% if freshness == 'Week' %}selected{% endif %}>Past week</option>
+                  <option value="Month" {% if freshness == 'Month' or not freshness %}selected{% endif %}>Past month</option>
+                </select>
+              </div>
+              <button type="submit" class="govuk-button" data-module="govuk-button">Summarise</button>
+            </form>
+
+            {% if error %}
+            <p class="govuk-error-message"><span class="govuk-visually-hidden">Error:</span> {{ error }}</p>
+            {% endif %}
+
+            <p id="news-status" class="govuk-body"></p>
+            <div id="news-result"></div>
+
+          </div>
+
+        </div>
+      </main>
+    </div>
+
+    {% if status_url %}
+    <script>
+      (function () {
+        const statusUrl = {{ status_url|tojson }};
+        const statusEl = document.getElementById("news-status");
+        const resultEl = document.getElementById("news-result");
+
+        function leanClass(lean) {
+          const map = {
+            "left": "app-source-lean--left",
+            "centre-left": "app-source-lean--centre-left",
+            "centre": "app-source-lean--centre",
+            "centre-right": "app-source-lean--centre-right",
+            "right": "app-source-lean--right",
+          };
+          return map[lean] || "";
+        }
+
+        function listItems(items) {
+          if (!Array.isArray(items) || !items.length) {
+            return '<p class="govuk-body govuk-hint">None identified.</p>';
+          }
+          return (
+            '<ul class="govuk-list govuk-list--bullet">' +
+            items.map((item) => `<li>${escapeHtml(item)}</li>`).join("") +
+            "</ul>"
+          );
+        }
+
+        function escapeHtml(str) {
+          return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+        }
+
+        function renderResult(data) {
+          if (!resultEl || !data) return;
+          const r = data.result;
+          if (!r) return;
+
+          const caveatHtml = r.caveat
+            ? `<div class="govuk-warning-text app-status-box">
+                 <span class="govuk-warning-text__icon" aria-hidden="true">!</span>
+                 <strong class="govuk-warning-text__text">
+                   <span class="govuk-visually-hidden">Warning</span>
+                   ${escapeHtml(r.caveat)}
+                 </strong>
+               </div>`
+            : "";
+
+          const sourcesHtml = Array.isArray(r.sources) && r.sources.length
+            ? r.sources.map((s) =>
+                `<li>
+                   <a class="govuk-link" href="${escapeHtml(s.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(s.title || s.source_name)}</a>
+                   <span class="app-source-lean ${leanClass(s.lean)}">${escapeHtml(s.lean)}</span>
+                   <span class="govuk-hint" style="display:inline;font-size:0.875rem;"> — ${escapeHtml(s.source_name)}</span>
+                 </li>`
+              ).join("")
+            : "<li>No sources available.</li>";
+
+          resultEl.innerHTML = `
+            ${caveatHtml}
+            <hr class="govuk-section-break govuk-section-break--m govuk-section-break--visible" />
+            <h2 class="govuk-heading-l">Summary</h2>
+
+            <div class="govuk-inset-text">
+              <h3 class="govuk-heading-s">Overview</h3>
+              <p class="govuk-body">${escapeHtml(r.overview || "No overview available.")}</p>
+            </div>
+
+            <div class="govuk-grid-row">
+              <div class="govuk-grid-column-one-half">
+                <div class="app-perspective-panel app-perspective-panel--left">
+                  <h3 class="govuk-heading-s">Left-leaning perspectives</h3>
+                  ${listItems(r.left_arguments)}
+                </div>
+              </div>
+              <div class="govuk-grid-column-one-half">
+                <div class="app-perspective-panel app-perspective-panel--right">
+                  <h3 class="govuk-heading-s">Right-leaning perspectives</h3>
+                  ${listItems(r.right_arguments)}
+                </div>
+              </div>
+            </div>
+
+            <div class="app-perspective-panel app-perspective-panel--consensus">
+              <h3 class="govuk-heading-s">Points of consensus</h3>
+              ${listItems(r.consensus)}
+            </div>
+
+            <details class="govuk-details">
+              <summary class="govuk-details__summary">
+                <span class="govuk-details__summary-text">Sources used (${r.sources ? r.sources.length : 0})</span>
+              </summary>
+              <div class="govuk-details__text">
+                <ul class="govuk-list govuk-list--bullet">
+                  ${sourcesHtml}
+                </ul>
+              </div>
+            </details>
+          `;
+        }
+
+        function setStatus(message, isError) {
+          statusEl.textContent = message;
+          statusEl.className = isError ? "govuk-error-message" : "govuk-body";
+        }
+
+        async function poll() {
+          try {
+            const response = await fetch(statusUrl, { cache: "no-store" });
+            if (!response.ok) {
+              setStatus("Unable to fetch summary status.", true);
+              return;
+            }
+
+            const data = await response.json();
+
+            if (data.status === "failed") {
+              setStatus(data.error || "Summary failed.", true);
+              return;
+            }
+
+            if (data.status === "completed") {
+              setStatus("Summary complete.");
+              renderResult(data);
+              return;
+            }
+
+            setStatus("Searching and summarising news articles — this may take up to 30 seconds...");
+            setTimeout(poll, 1500);
+          } catch (error) {
+            setStatus("Unable to fetch summary status.", true);
+          }
+        }
+
+        setStatus("Summary job queued...");
+        setTimeout(poll, 300);
+      })();
+    </script>
+    {% endif %}
+  </body>
+</html>
