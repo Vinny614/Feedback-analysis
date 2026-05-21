@@ -7,3 +7,4 @@ phi_model_name           = "gpt-4.1-mini"
 phi_model_version        = "2025-04-14"
 phi_deployment_capacity  = 1
 app_service_sku          = "B1"
+enable_bing_grounding    = false

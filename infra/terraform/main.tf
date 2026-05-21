@@ -75,6 +75,8 @@ resource "azurerm_cognitive_deployment" "phi" {
 }
 
 resource "azapi_resource" "bing_grounding" {
+  count = var.enable_bing_grounding ? 1 : 0
+
   type      = "Microsoft.Bing/accounts@2020-06-10"
   name      = "${local.app_prefix}bing${random_string.suffix.result}"
   parent_id = azurerm_resource_group.this.id
@@ -114,15 +116,19 @@ resource "azurerm_linux_web_app" "this" {
     app_command_line = "gunicorn --bind=0.0.0.0:$PORT --timeout 300 wsgi:application"
   }
 
-  app_settings = {
-    AZURE_LANGUAGE_ENDPOINT        = azurerm_cognitive_account.language.endpoint
-    AZURE_OPENAI_ENDPOINT          = azurerm_cognitive_account.openai.endpoint
-    PHI_DEPLOYMENT_NAME            = azurerm_cognitive_deployment.phi.name
-    PHI_MODEL_NAME                 = var.phi_model_name
-    PHI_MODEL_VERSION              = var.phi_model_version
-    BING_CONNECTION_ID             = azapi_resource.bing_grounding.id
-    SCM_DO_BUILD_DURING_DEPLOYMENT = "true"
-  }
+  app_settings = merge(
+    {
+      AZURE_LANGUAGE_ENDPOINT        = azurerm_cognitive_account.language.endpoint
+      AZURE_OPENAI_ENDPOINT          = azurerm_cognitive_account.openai.endpoint
+      PHI_DEPLOYMENT_NAME            = azurerm_cognitive_deployment.phi.name
+      PHI_MODEL_NAME                 = var.phi_model_name
+      PHI_MODEL_VERSION              = var.phi_model_version
+      SCM_DO_BUILD_DURING_DEPLOYMENT = "true"
+    },
+    var.enable_bing_grounding ? {
+      BING_CONNECTION_ID = azapi_resource.bing_grounding[0].id
+    } : {}
+  )
 }
 
 resource "azurerm_role_assignment" "app_language_user" {
@@ -140,7 +146,8 @@ resource "azurerm_role_assignment" "app_openai_user" {
 }
 
 resource "azurerm_role_assignment" "app_bing_search_user" {
-  scope                = azapi_resource.bing_grounding.id
+  count                = var.enable_bing_grounding ? 1 : 0
+  scope                = azapi_resource.bing_grounding[0].id
   role_definition_name = "Bing Search User"
   principal_id         = azurerm_linux_web_app.this.identity[0].principal_id
   principal_type       = "ServicePrincipal"

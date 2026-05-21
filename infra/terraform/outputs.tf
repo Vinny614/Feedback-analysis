@@ -30,5 +30,5 @@ output "resource_group_name" {
 
 output "bing_connection_id" {
   description = "Resource ID used for Bing grounding connection."
-  value       = azapi_resource.bing_grounding.id
+  value       = var.enable_bing_grounding ? azapi_resource.bing_grounding[0].id : null
 }

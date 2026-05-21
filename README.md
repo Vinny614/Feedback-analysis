@@ -73,7 +73,8 @@ Optional for News Topic Summariser grounding:
 For **Azure Web App deployments provisioned by Terraform**, the required endpoints,
 deployment name, and model metadata are set automatically in App Service application
 settings, and Terraform configures managed identity role assignments for Azure AI Language
-and Azure OpenAI.
+and Azure OpenAI. Bing Grounding is optional and only provisioned when
+`enable_bing_grounding=true`.
 
 ## Demo: one-command build and teardown with Terraform
 
@@ -85,7 +86,7 @@ Terraform provisions **everything** — AI services and the App Service.
 - Resource Group
 - Azure AI Language (`TextAnalytics`) account
 - Azure OpenAI account + chat model deployment
-- Bing Grounding account (for Grounding with Bing Search)
+- Optional Bing Grounding account (for Grounding with Bing Search)
 - App Service Plan + Linux Web App
 
 ### Deploy
@@ -104,6 +105,9 @@ cp terraform.tfvars.example terraform.tfvars
 terraform init
 terraform apply
 ```
+
+Set `enable_bing_grounding=true` in `terraform.tfvars` only if you need the News Topic Summariser
+to use Grounding with Bing Search.
 
 3. Deploy the application code to the App Service:
 
