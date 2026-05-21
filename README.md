@@ -66,6 +66,10 @@ Optional processing controls:
 - `MAX_CONCURRENT_ANALYSIS_REQUESTS` (defaults to `4`)
 - `MAX_BACKGROUND_JOBS` (defaults to `2`)
 
+Optional for News Topic Summariser grounding:
+
+- `BING_CONNECTION_ID` (required for Grounding with Bing Search; Azure resource ID)
+
 For **Azure Web App deployments provisioned by Terraform**, the required endpoints,
 deployment name, and model metadata are set automatically in App Service application
 settings, and Terraform configures managed identity role assignments for Azure AI Language
@@ -81,6 +85,7 @@ Terraform provisions **everything** — AI services and the App Service.
 - Resource Group
 - Azure AI Language (`TextAnalytics`) account
 - Azure OpenAI account + chat model deployment
+- Bing Grounding account (for Grounding with Bing Search)
 - App Service Plan + Linux Web App
 
 ### Deploy
@@ -170,7 +175,8 @@ Open `http://localhost:8000`.
 `DefaultAzureCredential` uses your `az login` session to authenticate to Azure AI services.
 If you are using Entra ID instead of service keys, your account must have the
 **Cognitive Services User** role on the Language resource and the
-**Cognitive Services OpenAI User** role on the OpenAI resource.
+**Cognitive Services OpenAI User** role on the OpenAI resource. For the news summariser,
+the app identity also needs access to the Bing grounding connection (`Bing Search User` role).
 
 Optional host/port overrides:
 
