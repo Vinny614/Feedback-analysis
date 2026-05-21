@@ -223,7 +223,8 @@ class TemplateDocumentRenderer:
         if not resolved_template_path.exists():
             raise ValueError(
                 "Word template file is missing. "
-                f"Set DOCUMENT_TEMPLATE_PATH or add template at {resolved_template_path}."
+                "Set the DOCUMENT_TEMPLATE_PATH environment variable "
+                f"or add template at {resolved_template_path}."
             )
         if resolved_template_path.suffix.lower() != ".docx":
             raise ValueError("Word template must be a .docx file.")
