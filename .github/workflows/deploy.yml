@@ -136,7 +136,8 @@ jobs:
           if find . -maxdepth 1 -name 'terraform.tfstate' -print -quit | grep -q .; then
             STATE_LIST_FILE="$(mktemp "${TMPDIR:-/tmp}/state_list.XXXXXX")"
             STATE_LIST_ERROR_FILE="$(mktemp "${TMPDIR:-/tmp}/state_list_error.XXXXXX")"
-            trap 'rm -f "${STATE_LIST_FILE}" "${STATE_LIST_ERROR_FILE}"' EXIT
+            REFRESH_PLAN_FILE="$(mktemp "${TMPDIR:-/tmp}/tfrefreshplan.XXXXXX")"
+            trap 'rm -f "${STATE_LIST_FILE}" "${STATE_LIST_ERROR_FILE}" "${REFRESH_PLAN_FILE}"' EXIT
 
             if ! terraform state list >"${STATE_LIST_FILE}" 2>"${STATE_LIST_ERROR_FILE}"; then
               echo "Unable to read Terraform state before refresh check. Error output:"
@@ -145,7 +146,12 @@ jobs:
             fi
 
             if [[ -s "${STATE_LIST_FILE}" ]]; then
-              terraform apply -refresh-only -input=false -auto-approve
+              terraform plan -refresh-only -input=false -out="${REFRESH_PLAN_FILE}"
+              if terraform show -json "${REFRESH_PLAN_FILE}" | jq -e '.applyable == true' >/dev/null; then
+                terraform apply -input=false -auto-approve "${REFRESH_PLAN_FILE}"
+              else
+                echo "Skipping refresh-only apply because the generated plan is not applyable."
+              fi
             fi
           fi
 
