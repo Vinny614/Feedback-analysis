@@ -30,5 +30,5 @@ output "resource_group_name" {
 
 output "bing_connection_id" {
   description = "Resource ID used for Bing grounding connection."
-  value       = azurerm_bing_grounding_service.this.id
+  value       = azapi_resource.bing_grounding.id
 }

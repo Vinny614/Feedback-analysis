@@ -74,9 +74,16 @@ resource "azurerm_cognitive_deployment" "phi" {
   }
 }
 
-resource "azurerm_bing_grounding_service" "this" {
-  name                = "${local.app_prefix}bing${random_string.suffix.result}"
-  resource_group_name = azurerm_resource_group.this.name
+resource "azapi_resource" "bing_grounding" {
+  type      = "Microsoft.Bing/accounts@2020-06-10"
+  name      = "${local.app_prefix}bing${random_string.suffix.result}"
+  parent_id = azurerm_resource_group.this.id
+  location  = azurerm_resource_group.this.location
+
+  body = jsonencode({
+    kind = "Bing.Search.v7"
+    sku  = { name = "G1" }
+  })
 }
 
 # ── App Service ───────────────────────────────────────────────────────────────
@@ -111,7 +118,7 @@ resource "azurerm_linux_web_app" "this" {
     PHI_DEPLOYMENT_NAME            = azurerm_cognitive_deployment.phi.name
     PHI_MODEL_NAME                 = var.phi_model_name
     PHI_MODEL_VERSION              = var.phi_model_version
-    BING_CONNECTION_ID             = azurerm_bing_grounding_service.this.id
+    BING_CONNECTION_ID             = azapi_resource.bing_grounding.id
     SCM_DO_BUILD_DURING_DEPLOYMENT = "true"
   }
 }
@@ -131,7 +138,7 @@ resource "azurerm_role_assignment" "app_openai_user" {
 }
 
 resource "azurerm_role_assignment" "app_bing_search_user" {
-  scope                = azurerm_bing_grounding_service.this.id
+  scope                = azapi_resource.bing_grounding.id
   role_definition_name = "Bing Search User"
   principal_id         = azurerm_linux_web_app.this.identity[0].principal_id
   principal_type       = "ServicePrincipal"
