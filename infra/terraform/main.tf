@@ -80,6 +80,8 @@ resource "azapi_resource" "bing_grounding" {
   parent_id = azurerm_resource_group.this.id
   location  = azurerm_resource_group.this.location
 
+  schema_validation_enabled = false
+
   body = jsonencode({
     kind = "Bing.Search.v7"
     sku  = { name = "G1" }
