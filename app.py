@@ -495,7 +495,9 @@ def document_extraction():
                     "Structured extraction completed, but template formatting failed unexpectedly."
                 )
                 context["template_status_level"] = "warning"
-            context["error"] = "Unable to process the uploaded document."
+                context["error"] = "Unable to apply the Word template to extracted document data."
+            else:
+                context["error"] = "Unable to process the uploaded document."
 
     return render_template("document_extraction.html", **context)
 

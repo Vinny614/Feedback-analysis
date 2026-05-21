@@ -167,7 +167,7 @@ def _format_key_events_text(key_events: List[Dict[str, Optional[str]]]) -> str:
     return "\n".join(lines) if lines else "No key events identified."
 
 
-def _get_template_text_nodes(doc: Any) -> List[Any]:
+def _get_template_paragraphs(doc: Any) -> List[Any]:
     nodes = list(doc.paragraphs)
     for table in doc.tables:
         for row in table.rows:
@@ -178,7 +178,7 @@ def _get_template_text_nodes(doc: Any) -> List[Any]:
 
 def _replace_placeholder_in_doc(doc: Any, placeholder: str, replacement: str) -> int:
     replaced = 0
-    for paragraph in _get_template_text_nodes(doc):
+    for paragraph in _get_template_paragraphs(doc):
         replaced_in_runs = False
         for run in paragraph.runs:
             if placeholder in run.text:
@@ -194,7 +194,7 @@ def _replace_placeholder_in_doc(doc: Any, placeholder: str, replacement: str) ->
 
 
 def _template_contains_placeholder(doc: Any, placeholder: str) -> bool:
-    return any(placeholder in node.text for node in _get_template_text_nodes(doc))
+    return any(placeholder in node.text for node in _get_template_paragraphs(doc))
 
 
 def validate_template_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
