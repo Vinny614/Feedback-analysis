@@ -27,3 +27,8 @@ output "resource_group_name" {
   description = "Azure resource group name used for the deployment."
   value       = azurerm_resource_group.this.name
 }
+
+output "bing_connection_id" {
+  description = "Resource ID used for Bing grounding connection."
+  value       = azurerm_bing_grounding_service.this.id
+}

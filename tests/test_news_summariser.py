@@ -75,75 +75,85 @@ class TestClassifySourceLean(unittest.TestCase):
         self.assertEqual(lean, "unknown")
 
 
-class TestFetchArticleText(unittest.TestCase):
-    def test_returns_article_body_text(self):
-        html = """
-        <html><body>
-        <nav>Navigation</nav>
-        <article>
-          <p>This is the main story content about an important event.</p>
-          <p>More details follow here.</p>
-        </article>
-        </body></html>
-        """
+class TestGroundedNewsSearch(unittest.TestCase):
+    def test_requires_bing_connection_id(self):
+        with self.assertRaises(ValueError):
+            news_summariser.search_news_articles(
+                topic="economy",
+                openai_endpoint="https://example.openai.azure.com",
+                openai_deployment="chat-model",
+                openai_api_key="fake-key",
+                bing_connection_id="",
+            )
+
+    def test_parses_articles_from_model_json_payload(self):
+        json_payload = (
+            '{"articles":[{"title":"Headline","url":"https://example.com/story",'
+            '"description":"Summary text","source_name":"Example News",'
+            '"published_date":"2026-05-01","body":"Full body"}]}'
+        )
         mock_response = MagicMock()
-        mock_response.text = html
-        mock_response.raise_for_status = MagicMock()
+        mock_response.json.return_value = {
+            "choices": [
+                {
+                    "message": {
+                        "content": json_payload
+                    }
+                }
+            ]
+        }
 
-        with patch("requests.get", return_value=mock_response):
-            text = news_summariser.fetch_article_text("http://example.com/article")
+        with patch.object(news_summariser, "_post_json_with_retry", return_value=mock_response):
+            articles = news_summariser.search_news_articles(
+                topic="economy",
+                freshness="Week",
+                openai_endpoint="https://example.openai.azure.com",
+                openai_deployment="chat-model",
+                openai_api_version="2025-01-01-preview",
+                openai_api_key="fake-key",
+                bing_connection_id="/subscriptions/x/resourceGroups/rg/providers/Microsoft.Bing/accounts/demo",
+            )
 
-        self.assertIn("main story content", text)
-        self.assertNotIn("Navigation", text)
+        self.assertEqual(len(articles), 1)
+        self.assertEqual(articles[0]["title"], "Headline")
+        self.assertEqual(articles[0]["source_name"], "Example News")
+        self.assertEqual(articles[0]["body"], "Full body")
+        self.assertIn("articles", json_payload)
 
-    def test_falls_back_to_paragraphs_when_no_article_tag(self):
-        html = """
-        <html><body>
-        <div class="content">
-          <p>Paragraph one.</p>
-          <p>Paragraph two.</p>
-        </div>
-        </body></html>
-        """
+    def test_falls_back_to_citations_when_model_payload_empty(self):
         mock_response = MagicMock()
-        mock_response.text = html
-        mock_response.raise_for_status = MagicMock()
+        mock_response.json.return_value = {
+            "choices": [
+                {
+                    "message": {
+                        "content": '{"articles":[]}',
+                        "context": {
+                            "citations": [
+                                {
+                                    "title": "Citation title",
+                                    "url": "https://reuters.com/path",
+                                    "content": "Citation snippet",
+                                    "provider": "Reuters",
+                                }
+                            ]
+                        },
+                    }
+                }
+            ]
+        }
 
-        with patch("requests.get", return_value=mock_response):
-            text = news_summariser.fetch_article_text("http://example.com/article")
+        with patch.object(news_summariser, "_post_json_with_retry", return_value=mock_response):
+            articles = news_summariser.search_news_articles(
+                topic="economy",
+                openai_endpoint="https://example.openai.azure.com",
+                openai_deployment="chat-model",
+                openai_api_key="fake-key",
+                bing_connection_id="/subscriptions/x/resourceGroups/rg/providers/Microsoft.Bing/accounts/demo",
+            )
 
-        self.assertIn("Paragraph one", text)
-        self.assertIn("Paragraph two", text)
-
-    def test_returns_empty_string_on_request_failure(self):
-        import requests as req
-        with patch("requests.get", side_effect=req.Timeout()):
-            text = news_summariser.fetch_article_text("http://example.com/article")
-
-        self.assertEqual(text, "")
-
-    def test_truncates_at_word_limit(self):
-        many_words = " ".join([f"word{i}" for i in range(2000)])
-        html = f"<html><body><article><p>{many_words}</p></article></body></html>"
-        mock_response = MagicMock()
-        mock_response.text = html
-        mock_response.raise_for_status = MagicMock()
-
-        with patch("requests.get", return_value=mock_response):
-            text = news_summariser.fetch_article_text("http://example.com/article")
-
-        self.assertLessEqual(len(text.split()), news_summariser._ARTICLE_WORD_LIMIT)
-
-    def test_malformed_html_does_not_raise(self):
-        mock_response = MagicMock()
-        mock_response.text = "<html><bod<p>broken<p>html</html"
-        mock_response.raise_for_status = MagicMock()
-
-        with patch("requests.get", return_value=mock_response):
-            try:
-                news_summariser.fetch_article_text("http://example.com/broken")
-            except Exception as exc:  # pragma: no cover
-                self.fail(f"fetch_article_text raised an exception on malformed HTML: {exc}")
+        self.assertEqual(len(articles), 1)
+        self.assertEqual(articles[0]["title"], "Citation title")
+        self.assertEqual(articles[0]["source_name"], "Reuters")
 
 
 class TestGenerateBalancedSummary(unittest.TestCase):
@@ -274,7 +284,7 @@ class TestNewsSummariserFlaskRoutes(unittest.TestCase):
         feedback_app.app.config["TESTING"] = True
         self.client = feedback_app.app.test_client()
         self._env = os.environ.copy()
-        os.environ["BING_SEARCH_KEY"] = "fake-bing-key"
+        os.environ["BING_CONNECTION_ID"] = "/subscriptions/x/resourceGroups/rg/providers/Microsoft.Bing/accounts/demo"
         with feedback_app._jobs_lock:
             feedback_app._analysis_jobs.clear()
 
@@ -300,11 +310,11 @@ class TestNewsSummariserFlaskRoutes(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"200 characters", response.data)
 
-    def test_post_missing_bing_key_returns_error(self):
-        del os.environ["BING_SEARCH_KEY"]
+    def test_post_missing_bing_connection_id_returns_error(self):
+        del os.environ["BING_CONNECTION_ID"]
         response = self.client.post("/news-summariser", data={"topic": "climate change", "freshness": "Month"})
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"BING_SEARCH_KEY", response.data)
+        self.assertIn(b"BING_CONNECTION_ID", response.data)
 
     def test_post_valid_topic_enqueues_job_and_returns_status_url(self):
         with patch.object(

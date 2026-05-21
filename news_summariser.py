@@ -3,19 +3,14 @@ import logging
 import os
 import re
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 import requests
 
 _logger = logging.getLogger(__name__)
 
 _BING_SEARCH_RESULTS = 30
-_ARTICLE_WORD_LIMIT = 1200
-_ARTICLE_FETCH_TIMEOUT = 5
-_FALLBACK_MIN_WORDS = 100
-_MAX_FETCH_WORKERS = 10
-
 _KNOWN_SOURCE_LEANS: Dict[str, str] = {
     # Centre / international wire services
     "reuters": "centre",
@@ -125,162 +120,199 @@ def _safe_parse_json(value: str) -> Any:
     try:
         return json.loads(value)
     except json.JSONDecodeError:
-        match = re.search(r"\{.*\}", value, re.DOTALL)
-        if not match:
-            return {}
-        try:
-            return json.loads(match.group(0))
-        except json.JSONDecodeError:
-            return {}
+        for pattern in (r"\{.*\}", r"\[.*\]"):
+            match = re.search(pattern, value, re.DOTALL)
+            if not match:
+                continue
+            try:
+                return json.loads(match.group(0))
+            except json.JSONDecodeError:
+                continue
+        return {}
+
+
+def _extract_source_name_from_url(url: str) -> str:
+    parsed = urlparse(url)
+    host = (parsed.netloc or "").lower()
+    if host.startswith("www."):
+        host = host[4:]
+    return host.split(".")[0].replace("-", " ").strip()
+
+
+def _normalise_grounded_articles(raw_articles: Any) -> List[Dict[str, Any]]:
+    if isinstance(raw_articles, dict):
+        candidates = (
+            raw_articles.get("articles")
+            or raw_articles.get("results")
+            or raw_articles.get("items")
+            or []
+        )
+    elif isinstance(raw_articles, list):
+        candidates = raw_articles
+    else:
+        candidates = []
+
+    articles: List[Dict[str, Any]] = []
+    for item in candidates:
+        if not isinstance(item, dict):
+            continue
+        source_name = item.get("source_name", "")
+        if not source_name:
+            source = item.get("source")
+            if isinstance(source, dict):
+                source_name = source.get("name", "")
+            elif isinstance(source, str):
+                source_name = source
+        article = {
+            "title": str(item.get("title", item.get("name", ""))).strip(),
+            "url": str(item.get("url", item.get("link", ""))).strip(),
+            "description": str(item.get("description", item.get("snippet", ""))).strip(),
+            "source_name": str(source_name).strip(),
+            "published_date": str(
+                item.get("published_date", item.get("datePublished", ""))
+            ).strip(),
+            "body": str(item.get("body", item.get("content", ""))).strip(),
+        }
+        if not article["body"]:
+            article["body"] = article["description"]
+        if not article["source_name"] and article["url"]:
+            article["source_name"] = _extract_source_name_from_url(article["url"])
+        if article["title"] or article["url"] or article["description"]:
+            articles.append(article)
+    return articles[:_BING_SEARCH_RESULTS]
 
 
 def search_news_articles(
     topic: str,
     freshness: str = "Month",
-    bing_endpoint: str = "",
-    bing_key: str = "",
+    openai_endpoint: str = "",
+    openai_deployment: str = "",
+    openai_api_version: str = "",
+    openai_api_key: str = "",
+    bing_connection_id: str = "",
 ) -> List[Dict[str, Any]]:
-    """Search Bing News for articles about *topic* and return structured metadata.
+    """Search news with Azure OpenAI + Bing grounding and return structured metadata.
 
     Args:
         topic: User-supplied news topic string.
-        freshness: Bing freshness filter – "Day", "Week", or "Month".
-        bing_endpoint: Bing Search base URL (defaults to env var BING_SEARCH_ENDPOINT).
-        bing_key: Bing subscription key (defaults to env var BING_SEARCH_KEY).
+        freshness: Search freshness hint – "Day", "Week", or "Month".
+        openai_endpoint: Azure OpenAI endpoint (defaults to AZURE_OPENAI_ENDPOINT).
+        openai_deployment: Azure OpenAI deployment name.
+        openai_api_version: Azure OpenAI API version.
+        openai_api_key: Azure OpenAI key (optional when managed identity is used).
+        bing_connection_id: Azure Bing grounding connection resource ID.
 
     Returns:
         List of dicts with keys: title, url, description, source_name, published_date.
 
     Raises:
-        ValueError: If no Bing key is configured.
+        ValueError: If required OpenAI/Bing grounding configuration is missing.
         requests.RequestException: On HTTP errors.
     """
-    endpoint = (bing_endpoint or os.getenv("BING_SEARCH_ENDPOINT", "https://api.bing.microsoft.com")).rstrip("/")
-    key = bing_key or os.getenv("BING_SEARCH_KEY", "")
+    endpoint = (openai_endpoint or os.getenv("AZURE_OPENAI_ENDPOINT", "")).rstrip("/")
+    deployment = openai_deployment or os.getenv("LANGUAGE_MODEL_DEPLOYMENT_NAME", "") or os.getenv(
+        "PHI_DEPLOYMENT_NAME", ""
+    )
+    api_version = openai_api_version or os.getenv(
+        "AZURE_OPENAI_API_VERSION", "2025-01-01-preview"
+    )
+    api_key = openai_api_key or os.getenv("AZURE_OPENAI_KEY", "")
+    connection_id = bing_connection_id or os.getenv("BING_CONNECTION_ID", "")
 
-    if not key:
+    if not endpoint or not deployment:
         raise ValueError(
-            "Bing Search API key is not configured. Set BING_SEARCH_KEY environment variable."
+            "Azure OpenAI endpoint or deployment is missing. Set AZURE_OPENAI_ENDPOINT and PHI_DEPLOYMENT_NAME (or LANGUAGE_MODEL_DEPLOYMENT_NAME)."
+        )
+    if not connection_id:
+        raise ValueError(
+            "Bing grounding connection is not configured. Set BING_CONNECTION_ID environment variable."
         )
 
     valid_freshness = {"Day", "Week", "Month"}
     if freshness not in valid_freshness:
         freshness = "Month"
 
-    headers = {
-        "Ocp-Apim-Subscription-Key": key,
-    }
-    params = {
-        "q": topic,
-        "mkt": "en-US",
-        "count": _BING_SEARCH_RESULTS,
-        "freshness": freshness,
-        "sortBy": "Relevance",
-        "textDecorations": False,
-        "textFormat": "Raw",
-    }
-
-    response = requests.get(
-        f"{endpoint}/v7.0/news/search",
-        headers=headers,
-        params=params,
-        timeout=15,
-    )
-    response.raise_for_status()
-
-    data = response.json()
-    articles: List[Dict[str, Any]] = []
-    for item in data.get("value", []):
-        provider_list = item.get("provider", [])
-        source_name = provider_list[0].get("name", "") if provider_list else ""
-        articles.append(
-            {
-                "title": item.get("name", ""),
-                "url": item.get("url", ""),
-                "description": item.get("description", ""),
-                "source_name": source_name,
-                "published_date": item.get("datePublished", ""),
-            }
-        )
-    return articles
-
-
-def fetch_article_text(url: str) -> str:
-    """Fetch and extract the main body text from a news article URL.
-
-    Falls back to an empty string on any error (timeouts, paywalls, JS-heavy pages).
-    """
-    try:
-        from bs4 import BeautifulSoup  # imported here to keep the module importable without bs4 in tests
-    except ImportError:
-        return ""
-
-    try:
-        resp = requests.get(
-            url,
-            timeout=_ARTICLE_FETCH_TIMEOUT,
-            headers={"User-Agent": "Mozilla/5.0 (compatible; NewsSummariserBot/1.0)"},
-        )
-        resp.raise_for_status()
-        html = resp.text
-    except Exception:
-        return ""
-
-    try:
-        soup = BeautifulSoup(html, "lxml")
-    except Exception:
+    headers: Dict[str, str] = {"Content-Type": "application/json"}
+    if api_key:
+        headers["api-key"] = api_key
+    else:
         try:
-            from bs4 import BeautifulSoup as BS  # noqa: F811
-            soup = BS(html, "html.parser")
-        except Exception:
-            return ""
+            from azure.identity import DefaultAzureCredential
 
-    for tag in soup(["script", "style", "nav", "header", "footer", "aside", "form", "iframe"]):
-        tag.decompose()
+            credential = DefaultAzureCredential()
+            token = credential.get_token(
+                "https://cognitiveservices.azure.com/.default"
+            ).token
+            headers["Authorization"] = f"Bearer {token}"
+        except Exception as exc:
+            raise ValueError(
+                "Azure credentials are unavailable. Set AZURE_OPENAI_KEY or configure managed identity."
+            ) from exc
 
-    text = ""
-    body = soup.find("article") or soup.find("main")
-    if body:
-        text = body.get_text(separator=" ", strip=True)
-    if not text:
-        paragraphs = soup.find_all("p")
-        text = " ".join(p.get_text(separator=" ", strip=True) for p in paragraphs)
+    user_prompt = f"""Find recent news coverage for topic: {topic}
+Freshness: {freshness}
 
-    words = text.split()
-    if len(words) > _ARTICLE_WORD_LIMIT:
-        words = words[:_ARTICLE_WORD_LIMIT]
-    return " ".join(words)
+Return only valid JSON with this shape:
+{{
+  "articles": [
+    {{
+      "title": "...",
+      "url": "...",
+      "description": "...",
+      "source_name": "...",
+      "published_date": "...",
+      "body": "..."
+    }}
+  ]
+}}
 
+Use at most {_BING_SEARCH_RESULTS} articles.
+"""
 
-def _fetch_articles_parallel(articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Enrich each article dict with a 'body' key by fetching full text in parallel."""
-    enriched = [dict(a) for a in articles]
-    url_to_index: Dict[str, int] = {}
-    for i, article in enumerate(enriched):
-        url = article.get("url", "")
-        if url:
-            url_to_index[url] = i
+    response = _post_json_with_retry(
+        f"{endpoint}/openai/deployments/{deployment}/chat/completions?api-version={api_version}",
+        headers=headers,
+        payload={
+            "temperature": 0,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a news research assistant. Return JSON only.",
+                },
+                {"role": "user", "content": user_prompt},
+            ],
+            "response_format": {"type": "json_object"},
+            "data_sources": [
+                {
+                    "type": "bing_grounding",
+                    "parameters": {"connection_id": connection_id},
+                }
+            ],
+        },
+        timeout=45,
+    )
+    response_data = response.json()
+    message = response_data.get("choices", [{}])[0].get("message", {})
+    parsed = _safe_parse_json(message.get("content", "{}"))
+    articles = _normalise_grounded_articles(parsed)
 
-    with ThreadPoolExecutor(max_workers=_MAX_FETCH_WORKERS) as executor:
-        future_to_url = {
-            executor.submit(fetch_article_text, url): url for url in url_to_index
+    if articles:
+        return articles
+
+    citations = message.get("context", {}).get("citations", [])
+    citation_articles = [
+        {
+            "title": str(item.get("title", "")).strip(),
+            "url": str(item.get("url", "")).strip(),
+            "description": str(item.get("content", "")).strip(),
+            "source_name": str(item.get("provider", "")).strip(),
+            "published_date": "",
+            "body": str(item.get("content", "")).strip(),
         }
-        for future in as_completed(future_to_url):
-            url = future_to_url[future]
-            idx = url_to_index[url]
-            try:
-                body = future.result()
-            except Exception:
-                body = ""
-            enriched[idx]["body"] = body
-
-    for article in enriched:
-        article.setdefault("body", "")
-        words = article["body"].split()
-        if len(words) < _FALLBACK_MIN_WORDS:
-            article["body"] = article.get("description", "")
-
-    return enriched
+        for item in citations
+        if isinstance(item, dict)
+    ]
+    return _normalise_grounded_articles(citation_articles)
 
 
 def classify_source_lean(
@@ -543,10 +575,9 @@ def run_news_summary(
             "right_arguments": [],
             "consensus": [],
             "sources": [],
-            "caveat": "No articles were returned by the Bing News Search API.",
+            "caveat": "No articles were returned by Grounding with Bing Search.",
         }
 
-    enriched = _fetch_articles_parallel(articles)
-    grouped = _group_articles_by_lean(enriched)
+    grouped = _group_articles_by_lean(articles)
     summary = generate_balanced_summary(topic, grouped)
     return summary

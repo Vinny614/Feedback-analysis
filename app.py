@@ -577,10 +577,10 @@ def news_summariser_page():
         context["topic"] = topic
         context["freshness"] = freshness
 
-        bing_key = os.getenv("BING_SEARCH_KEY", "")
-        if not bing_key:
+        bing_connection_id = os.getenv("BING_CONNECTION_ID", "")
+        if not bing_connection_id:
             context["error"] = (
-                "Bing Search is not configured. Set BING_SEARCH_KEY environment variable."
+                "Bing grounding is not configured. Set BING_CONNECTION_ID environment variable."
             )
             return render_template("news_summariser.html", **context)
 
