@@ -78,7 +78,7 @@ resource "azapi_resource" "bing_grounding" {
   type      = "Microsoft.Bing/accounts@2020-06-10"
   name      = "${local.app_prefix}bing${random_string.suffix.result}"
   parent_id = azurerm_resource_group.this.id
-  location  = azurerm_resource_group.this.location
+  location  = "global"
 
   schema_validation_enabled = false
 
