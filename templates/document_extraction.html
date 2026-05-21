@@ -47,6 +47,9 @@
         color: #505a5f;
         font-size: 0.875rem;
       }
+      .app-status-box {
+        margin-top: 15px;
+      }
     </style>
   </head>
   <body class="govuk-template__body">
@@ -132,6 +135,24 @@
 
             {% if error %}
             <p class="govuk-error-message"><span class="govuk-visually-hidden">Error:</span> {{ error }}</p>
+            {% endif %}
+
+            {% if template_status %}
+            <div class="app-status-box {% if template_status_level == 'success' %}govuk-notification-banner{% elif template_status_level == 'warning' %}govuk-inset-text{% else %}govuk-hint{% endif %}">
+              {% if template_status_level == 'success' %}
+              <div class="govuk-notification-banner__content">
+                <p class="govuk-notification-banner__heading">{{ template_status }}</p>
+              </div>
+              {% else %}
+              <p class="govuk-body">{{ template_status }}</p>
+              {% endif %}
+            </div>
+            {% endif %}
+
+            {% if reformatted_download_url %}
+            <p class="govuk-body">
+              <a class="govuk-link" href="{{ reformatted_download_url }}" download="{{ reformatted_filename }}">Download reformatted Word document (.docx)</a>
+            </p>
             {% endif %}
 
             {% if result %}

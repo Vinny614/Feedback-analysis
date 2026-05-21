@@ -1,7 +1,8 @@
 import io
 import os
+import tempfile
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import app as feedback_app
 import document_extraction as doc_ext
@@ -82,6 +83,54 @@ class MockDocumentFormatterTests(unittest.TestCase):
         self.assertIsInstance(result["key_events"], list)
 
 
+class TemplateDocumentRendererTests(unittest.TestCase):
+    def _create_template(self, content: str) -> str:
+        from docx import Document
+
+        fd, path = tempfile.mkstemp(suffix=".docx")
+        os.close(fd)
+        doc = Document()
+        doc.add_paragraph(content)
+        doc.save(path)
+        return path
+
+    def test_render_replaces_placeholders(self):
+        from docx import Document
+
+        path = self._create_template("{{TITLE}}\n{{SUMMARY}}\n{{KEY_EVENTS}}")
+        renderer = doc_ext.TemplateDocumentRenderer(template_path=path)
+        payload = {
+            "title": "Alpha Report",
+            "summary": "Summary text.",
+            "key_events": [{"event": "Kickoff", "date": "2024-01-01", "time": None}],
+        }
+        output = renderer.render(payload)
+        doc = Document(io.BytesIO(output))
+        text = "\n".join(p.text for p in doc.paragraphs)
+        self.assertIn("Alpha Report", text)
+        self.assertIn("Summary text.", text)
+        self.assertIn("Kickoff", text)
+
+    def test_render_fails_when_template_missing_placeholders(self):
+        path = self._create_template("Only title {{TITLE}}")
+        renderer = doc_ext.TemplateDocumentRenderer(template_path=path)
+        payload = {
+            "title": "Alpha Report",
+            "summary": "Summary text.",
+            "key_events": [{"event": "Kickoff", "date": "2024-01-01", "time": None}],
+        }
+        with self.assertRaises(ValueError) as ctx:
+            renderer.render(payload)
+        self.assertIn("Missing placeholders", str(ctx.exception))
+
+    def test_render_fails_for_missing_required_payload_fields(self):
+        path = self._create_template("{{TITLE}} {{SUMMARY}} {{KEY_EVENTS}}")
+        renderer = doc_ext.TemplateDocumentRenderer(template_path=path)
+        with self.assertRaises(ValueError) as ctx:
+            renderer.render({"title": "", "summary": "Summary text.", "key_events": []})
+        self.assertIn("non-empty document title", str(ctx.exception))
+
+
 class DocumentExtractionRouteTests(unittest.TestCase):
     def setUp(self):
         feedback_app.app.config["TESTING"] = True
@@ -121,6 +170,8 @@ class DocumentExtractionRouteTests(unittest.TestCase):
         body = response.get_data(as_text=True)
         self.assertIn("Extracted information", body)
         self.assertIn("Document Title", body)
+        self.assertIn("Download reformatted Word document", body)
+        self.assertIn("Template formatting complete.", body)
 
     def test_post_pdf_returns_mock_result(self):
         file_bytes = _make_minimal_pdf()
@@ -135,6 +186,7 @@ class DocumentExtractionRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         body = response.get_data(as_text=True)
         self.assertIn("Extracted information", body)
+        self.assertIn("Download reformatted Word document", body)
 
     def test_post_no_file_returns_error(self):
         response = self.client.post(
@@ -180,6 +232,21 @@ class DocumentExtractionRouteTests(unittest.TestCase):
         self.assertIn("Alpha Report", body)
         self.assertIn("A short summary.", body)
         self.assertIn("Kickoff", body)
+        self.assertIn("Download reformatted Word document", body)
+
+    def test_post_shows_template_failure_status_when_template_missing(self):
+        os.environ["DOCUMENT_TEMPLATE_PATH"] = "/tmp/does-not-exist-template.docx"
+        file_bytes = _make_minimal_docx()
+        response = self.client.post(
+            "/document-extraction",
+            data={"document_file": (io.BytesIO(file_bytes), "report.docx")},
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertIn("Structured extraction completed, but template formatting failed.", body)
+        self.assertIn("Word template file is missing.", body)
+        self.assertIn("Extracted information", body)
 
 
 if __name__ == "__main__":

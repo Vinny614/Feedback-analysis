@@ -430,6 +430,7 @@ def document_extraction():
         "reformatted_download_url": None,
         "reformatted_filename": None,
         "template_status": None,
+        "template_status_level": None,
     }
     if request.method == "POST":
         uploaded_file = request.files.get("document_file")
@@ -443,6 +444,8 @@ def document_extraction():
             return render_template("document_extraction.html", **context)
 
         try:
+            context["template_status"] = "Template formatting triggered."
+            context["template_status_level"] = "info"
             file_bytes = uploaded_file.read()
             text = doc_extraction.extract_text(file_bytes, filename)
             if not text.strip():
@@ -468,11 +471,13 @@ def document_extraction():
             context["reformatted_download_url"] = _build_docx_download_link(output_bytes)
             context["reformatted_filename"] = "reformatted_document_output.docx"
             context["template_status"] = "Template formatting complete."
+            context["template_status_level"] = "success"
         except ValueError as exc:
             if context["result"] is not None:
                 context["template_status"] = (
                     "Structured extraction completed, but template formatting failed."
                 )
+                context["template_status_level"] = "warning"
             context["error"] = str(exc)
         except requests.RequestException as exc:
             logger.exception("External service request failed during document extraction.")
