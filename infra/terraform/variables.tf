@@ -63,3 +63,9 @@ variable "app_service_sku" {
   type        = string
   default     = "B1"
 }
+
+variable "enable_bing_grounding" {
+  description = "Whether to provision Bing grounding resources for the optional News Topic Summariser page."
+  type        = bool
+  default     = false
+}
