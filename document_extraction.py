@@ -1,6 +1,8 @@
 import io
 import logging
+import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from feedback_analysis import _build_service_headers, _post_with_retry, _safe_parse_json
@@ -8,6 +10,14 @@ from feedback_analysis import _build_service_headers, _post_with_retry, _safe_pa
 _logger = logging.getLogger(__name__)
 
 MAX_DOCUMENT_CHARS = 50_000
+DEFAULT_TEMPLATE_PATH = (
+    Path(__file__).resolve().parent / "word_templates" / "document_reformat_template.docx"
+)
+TEMPLATE_PLACEHOLDERS = {
+    "title": "{{TITLE}}",
+    "summary": "{{SUMMARY}}",
+    "key_events": "{{KEY_EVENTS}}",
+}
 
 _SYSTEM_PROMPT = (
     "You are a document analyst. Extract structured information from the provided document text. "
@@ -125,3 +135,115 @@ class MockDocumentFormatter:
                 {"event": "Key milestone reached", "date": "2024-06-15", "time": "10:00"},
             ],
         }
+
+
+def resolve_template_path(template_path: str = "") -> Path:
+    candidate = template_path.strip() or os.getenv("DOCUMENT_TEMPLATE_PATH", "").strip()
+    if candidate:
+        return Path(candidate)
+    return DEFAULT_TEMPLATE_PATH
+
+
+def _build_key_events_text(key_events: List[Dict[str, Optional[str]]]) -> str:
+    if not key_events:
+        return "No key events identified."
+    lines = []
+    for event in key_events:
+        event_name = str(event.get("event", "")).strip()
+        if not event_name:
+            continue
+        date = str(event.get("date", "")).strip() if event.get("date") else ""
+        time = str(event.get("time", "")).strip() if event.get("time") else ""
+        if date and time:
+            lines.append(f"- {event_name} ({date} at {time})")
+        elif date:
+            lines.append(f"- {event_name} ({date})")
+        elif time:
+            lines.append(f"- {event_name} ({time})")
+        else:
+            lines.append(f"- {event_name}")
+    return "\n".join(lines) if lines else "No key events identified."
+
+
+def _iter_template_text_nodes(doc: Any) -> List[Any]:
+    nodes = list(doc.paragraphs)
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                nodes.extend(cell.paragraphs)
+    return nodes
+
+
+def _replace_placeholder_in_doc(doc: Any, placeholder: str, replacement: str) -> int:
+    replaced = 0
+    for paragraph in _iter_template_text_nodes(doc):
+        if placeholder in paragraph.text:
+            paragraph.text = paragraph.text.replace(placeholder, replacement)
+            replaced += 1
+    return replaced
+
+
+def _template_contains_placeholder(doc: Any, placeholder: str) -> bool:
+    return any(placeholder in node.text for node in _iter_template_text_nodes(doc))
+
+
+def validate_template_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    title = str(payload.get("title", "")).strip()
+    summary = str(payload.get("summary", "")).strip()
+    key_events = _normalise_key_events(payload.get("key_events", []))
+
+    if not title:
+        raise ValueError("Template formatting requires a non-empty document title.")
+    if not summary:
+        raise ValueError("Template formatting requires a non-empty summary.")
+
+    return {"title": title, "summary": summary, "key_events": key_events}
+
+
+@dataclass
+class TemplateDocumentRenderer:
+    template_path: str = ""
+
+    def render(self, payload: Dict[str, Any]) -> bytes:
+        from docx import Document
+
+        validated = validate_template_payload(payload)
+        resolved_template_path = resolve_template_path(self.template_path)
+
+        if not resolved_template_path.exists():
+            raise ValueError(
+                "Word template file is missing. "
+                f"Set DOCUMENT_TEMPLATE_PATH or add template at {resolved_template_path}."
+            )
+        if resolved_template_path.suffix.lower() != ".docx":
+            raise ValueError("Word template must be a .docx file.")
+
+        try:
+            doc = Document(str(resolved_template_path))
+        except Exception as exc:
+            raise ValueError("Word template could not be opened. Use a valid .docx template file.") from exc
+
+        missing_placeholders = [
+            placeholder
+            for placeholder in TEMPLATE_PLACEHOLDERS.values()
+            if not _template_contains_placeholder(doc, placeholder)
+        ]
+        if missing_placeholders:
+            raise ValueError(
+                "Word template is malformed. Missing placeholders: "
+                + ", ".join(missing_placeholders)
+            )
+
+        replacements = {
+            TEMPLATE_PLACEHOLDERS["title"]: validated["title"],
+            TEMPLATE_PLACEHOLDERS["summary"]: validated["summary"],
+            TEMPLATE_PLACEHOLDERS["key_events"]: _build_key_events_text(validated["key_events"]),
+        }
+
+        for placeholder, replacement in replacements.items():
+            _replace_placeholder_in_doc(doc, placeholder, replacement)
+
+        output = io.BytesIO()
+        doc.save(output)
+        output.seek(0)
+        return output.read()

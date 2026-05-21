@@ -218,6 +218,14 @@ def _build_download_link(df: pd.DataFrame) -> str:
     )
 
 
+def _build_docx_download_link(file_bytes: bytes) -> str:
+    payload = base64.b64encode(file_bytes).decode("utf-8")
+    return (
+        "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,"
+        f"{payload}"
+    )
+
+
 def _create_analyzers(use_mock: bool):
     if use_mock:
         return (
@@ -415,7 +423,14 @@ def index():
 
 @app.route("/document-extraction", methods=["GET", "POST"])
 def document_extraction():
-    context: Dict[str, Any] = {"error": None, "result": None, "active_page": "document"}
+    context: Dict[str, Any] = {
+        "error": None,
+        "result": None,
+        "active_page": "document",
+        "reformatted_download_url": None,
+        "reformatted_filename": None,
+        "template_status": None,
+    }
     if request.method == "POST":
         uploaded_file = request.files.get("document_file")
         if not uploaded_file or uploaded_file.filename == "":
@@ -443,8 +458,21 @@ def document_extraction():
                     api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview"),
                     api_key=os.getenv("AZURE_OPENAI_KEY", ""),
                 )
-            context["result"] = formatter.format(text)
+            result = formatter.format(text)
+            context["result"] = result
+
+            renderer = doc_extraction.TemplateDocumentRenderer(
+                template_path=os.getenv("DOCUMENT_TEMPLATE_PATH", "")
+            )
+            output_bytes = renderer.render(result)
+            context["reformatted_download_url"] = _build_docx_download_link(output_bytes)
+            context["reformatted_filename"] = "reformatted_document_output.docx"
+            context["template_status"] = "Template formatting complete."
         except ValueError as exc:
+            if context["result"] is not None:
+                context["template_status"] = (
+                    "Structured extraction completed, but template formatting failed."
+                )
             context["error"] = str(exc)
         except requests.RequestException as exc:
             logger.exception("External service request failed during document extraction.")
