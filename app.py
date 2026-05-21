@@ -14,6 +14,7 @@ import requests
 from flask import Flask, jsonify, render_template, request, url_for
 
 import document_extraction as doc_extraction
+import news_summariser
 from feedback_analysis import (
     AZURE_ENRICHMENT_COLUMNS,
     ENRICHMENT_COLUMNS,
@@ -500,6 +501,111 @@ def document_extraction():
                 context["error"] = "Unable to process the uploaded document."
 
     return render_template("document_extraction.html", **context)
+
+
+def _enqueue_news_job(topic: str, freshness: str) -> str:
+    job_id = uuid.uuid4().hex
+    with _jobs_lock:
+        _analysis_jobs[job_id] = {
+            "type": "news",
+            "status": "queued",
+            "error": None,
+            "result": None,
+        }
+    _job_executor.submit(_process_news_job, job_id, topic, freshness)
+    return job_id
+
+
+def _process_news_job(job_id: str, topic: str, freshness: str) -> None:
+    with _jobs_lock:
+        job = _analysis_jobs.get(job_id)
+        if job is None:
+            return
+        job["status"] = "running"
+
+    try:
+        result = news_summariser.run_news_summary(topic, freshness=freshness)
+        with _jobs_lock:
+            job = _analysis_jobs.get(job_id)
+            if job is None:
+                return
+            job["status"] = "completed"
+            job["result"] = result
+    except ValueError as exc:
+        _set_job_failure(job_id, str(exc))
+    except requests.RequestException as exc:
+        logger.exception("External service request failed in news summary job.")
+        details = _format_request_exception(exc)
+        _set_job_failure(
+            job_id,
+            (
+                "News search or summarisation request to Azure services failed. "
+                "Check endpoint configuration and identity permissions. "
+                f"{details}"
+            ).strip(),
+        )
+    except Exception:
+        logger.exception("Unexpected error in news summary job.")
+        _set_job_failure(job_id, "Unable to complete the news summary.")
+
+
+@app.route("/news-summariser", methods=["GET", "POST"])
+def news_summariser_page():
+    context: Dict[str, Any] = {
+        "error": None,
+        "topic": "",
+        "freshness": "Month",
+        "status_url": None,
+        "active_page": "news",
+    }
+    if request.method == "POST":
+        topic = (request.form.get("topic") or "").strip()
+        freshness = (request.form.get("freshness") or "Month").strip()
+
+        if not topic:
+            context["error"] = "Please enter a news topic."
+            return render_template("news_summariser.html", **context)
+
+        if len(topic) > 200:
+            context["error"] = "Topic must be 200 characters or fewer."
+            return render_template("news_summariser.html", **context)
+
+        valid_freshness = {"Day", "Week", "Month"}
+        if freshness not in valid_freshness:
+            freshness = "Month"
+
+        context["topic"] = topic
+        context["freshness"] = freshness
+
+        bing_key = os.getenv("BING_SEARCH_KEY", "")
+        if not bing_key:
+            context["error"] = (
+                "Bing Search is not configured. Set BING_SEARCH_KEY environment variable."
+            )
+            return render_template("news_summariser.html", **context)
+
+        job_id = _enqueue_news_job(topic, freshness)
+        context["status_url"] = url_for("news_job_status", job_id=job_id)
+
+    return render_template("news_summariser.html", **context)
+
+
+@app.route("/news-summariser/status/<job_id>", methods=["GET"])
+def news_job_status(job_id: str):
+    with _jobs_lock:
+        job = _analysis_jobs.get(job_id)
+        if job is None:
+            return jsonify({"error": "Job not found."}), 404
+        if job.get("type") != "news":
+            return jsonify({"error": "Job type mismatch."}), 400
+        snapshot = {
+            "status": job["status"],
+            "error": job["error"],
+            "result": job["result"],
+        }
+    response = jsonify(snapshot)
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.route("/jobs/<job_id>/status", methods=["GET"])
